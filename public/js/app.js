@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initMap();
   initPublishForm();
   initModals();
+  initReviewModal();
   loadUsers();
   loadDances();
   loadHotRanking();
@@ -34,6 +35,9 @@ function initNavigation() {
       
       if (view === 'map') {
         setTimeout(loadNearbyDances, 100);
+      }
+      if (view === 'profile') {
+        loadUserProfile();
       }
     });
   });
@@ -151,6 +155,24 @@ function formatDate(date) {
   return `${year}-${month}-${day}`;
 }
 
+function renderStars(rating, size = 'small') {
+  const fullStars = Math.floor(rating);
+  const hasHalf = rating % 1 >= 0.5;
+  const emptyStars = 5 - fullStars - (hasHalf ? 1 : 0);
+  
+  let html = '';
+  for (let i = 0; i < fullStars; i++) {
+    html += `<span class="star star-full ${size}">★</span>`;
+  }
+  if (hasHalf) {
+    html += `<span class="star star-half ${size}">★</span>`;
+  }
+  for (let i = 0; i < emptyStars; i++) {
+    html += `<span class="star star-empty ${size}">★</span>`;
+  }
+  return html;
+}
+
 function initFilters() {
   document.getElementById('styleFilter').addEventListener('change', renderDanceList);
   document.getElementById('sortSelect').addEventListener('change', renderDanceList);
@@ -251,8 +273,22 @@ function createDanceCard(dance) {
 
 async function showDanceDetail(id) {
   try {
-    const res = await fetch(`${API_BASE}/dances/${id}`);
-    const dance = await res.json();
+    const danceRes = await fetch(`${API_BASE}/dances/${id}`);
+    const dance = await danceRes.json();
+    
+    const [avgRes, reviewsRes] = await Promise.all([
+      fetch(`${API_BASE}/reviews/dance/${id}/average`),
+      fetch(`${API_BASE}/reviews?danceId=${id}`)
+    ]);
+    
+    const averages = await avgRes.json();
+    const reviews = await reviewsRes.json();
+    
+    const userReview = currentUser 
+      ? reviews.find(r => r.userId === currentUser.id) 
+      : null;
+    
+    const canReview = currentUser && !userReview && new Date(dance.date) < new Date();
     
     const styleTags = dance.styles.map(s => 
       `<span class="style-tag style-${s.toLowerCase()}">${s}</span>`
@@ -261,6 +297,95 @@ async function showDanceDetail(id) {
     const dateObj = new Date(dance.date);
     const dateStr = `${dateObj.getFullYear()}年${dateObj.getMonth() + 1}月${dateObj.getDate()}日`;
     const weekDay = ['周日','周一','周二','周三','周四','周五','周六'][dateObj.getDay()];
+    
+    let ratingsHtml = '';
+    if (averages.count > 0) {
+      ratingsHtml = `
+        <div class="ratings-overview">
+          <div class="ratings-summary">
+            <div class="overall-rating">
+              <span class="overall-score">${averages.overallAvg}</span>
+              <div class="overall-stars">${renderStars(averages.overallAvg, 'large')}</div>
+              <span class="rating-count">${averages.count} 条评价</span>
+            </div>
+            <div class="ratings-breakdown">
+              <div class="rating-item">
+                <span class="rating-label">场地环境</span>
+                <div class="rating-stars">${renderStars(averages.venueAvg)}</div>
+                <span class="rating-value">${averages.venueAvg}</span>
+              </div>
+              <div class="rating-item">
+                <span class="rating-label">音乐质量</span>
+                <div class="rating-stars">${renderStars(averages.musicAvg)}</div>
+                <span class="rating-value">${averages.musicAvg}</span>
+              </div>
+              <div class="rating-item">
+                <span class="rating-label">组织水平</span>
+                <div class="rating-stars">${renderStars(averages.organizationAvg)}</div>
+                <span class="rating-value">${averages.organizationAvg}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    } else {
+      ratingsHtml = `
+        <div class="ratings-overview no-ratings">
+          <div class="no-ratings-text">暂无评价，快来成为第一个评价的人吧！</div>
+        </div>
+      `;
+    }
+    
+    let reviewsHtml = '';
+    if (reviews.length > 0) {
+      reviewsHtml = `
+        <div class="reviews-section">
+          <h4>用户评价 (${reviews.length})</h4>
+          <div class="reviews-list">
+            ${reviews.map(review => `
+              <div class="review-item">
+                <div class="review-header">
+                  <img src="${review.user.avatar}" alt="${review.user.name}" class="review-avatar">
+                  <div class="review-user-info">
+                    <span class="review-user-name">${review.user.name}</span>
+                    <span class="review-date">${formatDate(new Date(review.createdAt))}</span>
+                  </div>
+                </div>
+                <div class="review-ratings">
+                  <div class="review-rating-item">
+                    <span>场地</span>
+                    ${renderStars(review.venueRating)}
+                  </div>
+                  <div class="review-rating-item">
+                    <span>音乐</span>
+                    ${renderStars(review.musicRating)}
+                  </div>
+                  <div class="review-rating-item">
+                    <span>组织</span>
+                    ${renderStars(review.organizationRating)}
+                  </div>
+                </div>
+                ${review.comment ? `<div class="review-comment">${review.comment}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+    
+    let reviewButtonHtml = '';
+    if (userReview) {
+      reviewButtonHtml = `
+        <div class="user-review-notice">
+          <span class="notice-icon">✓</span>
+          您已评价过此舞会
+        </div>
+      `;
+    } else if (canReview) {
+      reviewButtonHtml = `
+        <button class="btn btn-secondary" onclick="openReviewModal(${dance.id})">评价舞会</button>
+      `;
+    }
     
     document.getElementById('modalBody').innerHTML = `
       <div class="modal-dance-header">
@@ -279,8 +404,11 @@ async function showDanceDetail(id) {
         <h4>舞会介绍</h4>
         <p>${dance.description || '暂无介绍'}</p>
       </div>
+      ${ratingsHtml}
+      ${reviewsHtml}
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
+        ${reviewButtonHtml}
         <button class="btn btn-primary" onclick="inviteToDance(${dance.id})">邀约舞伴</button>
       </div>
     `;
@@ -328,8 +456,14 @@ async function loadUsers() {
         currentUser = allUsers.find(u => u.id === parseInt(e.target.value));
         showToast(`已切换为 ${currentUser.name}`, 'success');
         loadPartners();
+        if (document.getElementById('profile-view').classList.contains('active')) {
+          loadUserProfile();
+        }
       } else {
         currentUser = null;
+        if (document.getElementById('profile-view').classList.contains('active')) {
+          loadUserProfile();
+        }
       }
     });
   } catch (e) {
@@ -722,6 +856,275 @@ async function sendInvitation(e) {
   } catch (e) {
     console.error('发送邀约失败:', e);
     showToast('发送失败', 'error');
+  }
+}
+
+function initReviewModal() {
+  document.querySelector('.close-review-modal').addEventListener('click', closeReviewModal);
+  
+  document.getElementById('reviewModal').addEventListener('click', (e) => {
+    if (e.target.id === 'reviewModal') closeReviewModal();
+  });
+  
+  document.querySelectorAll('.star-rating').forEach(container => {
+    const stars = container.querySelectorAll('.star');
+    const type = container.dataset.rating;
+    const input = document.getElementById(`${type}Rating`);
+    const label = container.querySelector('.rating-label');
+    
+    stars.forEach(star => {
+      star.addEventListener('click', () => {
+        const value = parseInt(star.dataset.value);
+        input.value = value;
+        
+        stars.forEach((s, i) => {
+          s.classList.remove('star-full', 'star-empty');
+          if (i < value) {
+            s.classList.add('star-full');
+          } else {
+            s.classList.add('star-empty');
+          }
+        });
+        
+        const labels = ['很差', '较差', '一般', '较好', '非常好'];
+        label.textContent = `${value} 分 - ${labels[value - 1]}`;
+      });
+      
+      star.addEventListener('mouseenter', () => {
+        const value = parseInt(star.dataset.value);
+        stars.forEach((s, i) => {
+          s.classList.remove('star-full', 'star-empty', 'star-hover');
+          if (i < value) {
+            s.classList.add('star-hover');
+          } else {
+            s.classList.add('star-empty');
+          }
+        });
+      });
+      
+      star.addEventListener('mouseleave', () => {
+        const currentValue = parseInt(input.value) || 0;
+        stars.forEach((s, i) => {
+          s.classList.remove('star-full', 'star-empty', 'star-hover');
+          if (i < currentValue) {
+            s.classList.add('star-full');
+          } else {
+            s.classList.add('star-empty');
+          }
+        });
+      });
+    });
+  });
+  
+  document.getElementById('reviewForm').addEventListener('submit', submitReview);
+  
+  document.querySelector('textarea[name="comment"]').addEventListener('input', (e) => {
+    document.getElementById('commentCount').textContent = e.target.value.length;
+  });
+}
+
+function openReviewModal(danceId) {
+  if (!currentUser) {
+    showToast('请先选择身份', 'error');
+    return;
+  }
+  
+  const dance = allDances.find(d => d.id === danceId);
+  if (!dance) {
+    showToast('舞会不存在', 'error');
+    return;
+  }
+  
+  document.getElementById('reviewDanceId').value = danceId;
+  document.getElementById('reviewDanceInfo').innerHTML = `
+    <div class="review-dance-title">${dance.title}</div>
+    <div class="review-dance-meta">${dance.date} | ${dance.venue}</div>
+  `;
+  
+  ['venue', 'music', 'organization'].forEach(type => {
+    document.getElementById(`${type}Rating`).value = '';
+    const container = document.querySelector(`.star-rating[data-rating="${type}"]`);
+    container.querySelectorAll('.star').forEach(s => {
+      s.classList.remove('star-full', 'star-hover');
+      s.classList.add('star-empty');
+    });
+    container.querySelector('.rating-label').textContent = '请选择评分';
+  });
+  
+  const commentTextarea = document.querySelector('textarea[name="comment"]');
+  commentTextarea.value = '';
+  document.getElementById('commentCount').textContent = '0';
+  
+  document.getElementById('reviewModal').classList.add('active');
+}
+
+function closeReviewModal() {
+  document.getElementById('reviewModal').classList.remove('active');
+}
+
+async function submitReview(e) {
+  e.preventDefault();
+  
+  if (!currentUser) {
+    showToast('请先选择身份', 'error');
+    return;
+  }
+  
+  const formData = new FormData(e.target);
+  
+  const venueRating = parseInt(formData.get('venueRating'));
+  const musicRating = parseInt(formData.get('musicRating'));
+  const organizationRating = parseInt(formData.get('organizationRating'));
+  
+  if (!venueRating || !musicRating || !organizationRating) {
+    showToast('请完成所有评分', 'error');
+    return;
+  }
+  
+  const reviewData = {
+    danceId: parseInt(formData.get('danceId')),
+    userId: currentUser.id,
+    venueRating,
+    musicRating,
+    organizationRating,
+    comment: formData.get('comment')
+  };
+  
+  try {
+    const res = await fetch(`${API_BASE}/reviews`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reviewData)
+    });
+    
+    if (res.ok) {
+      showToast('评价提交成功！', 'success');
+      closeReviewModal();
+      closeModal();
+      showDanceDetail(reviewData.danceId);
+    } else {
+      const data = await res.json();
+      showToast(data.error || '提交失败', 'error');
+    }
+  } catch (e) {
+    console.error('提交评价失败:', e);
+    showToast('提交失败', 'error');
+  }
+}
+
+async function loadUserProfile() {
+  const container = document.getElementById('profileContent');
+  
+  if (!currentUser) {
+    container.innerHTML = '<div style="text-align:center;color:#999;padding:40px;">请先选择身份</div>';
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/reviews?userId=${currentUser.id}`);
+    const reviews = await res.json();
+    
+    const roleText = { leader: '引带', follower: '跟随', both: '双修' }[currentUser.role] || currentUser.role;
+    const levelText = { beginner: '入门', intermediate: '中级', advanced: '高级' }[currentUser.level] || currentUser.level;
+    
+    const styleTags = currentUser.styles.map(s => 
+      `<span class="style-tag style-${s.toLowerCase()}">${s}</span>`
+    ).join('');
+    
+    let reviewsHtml = '';
+    if (reviews.length > 0) {
+      reviewsHtml = `
+        <div class="profile-section">
+          <h3>📝 我的评价 (${reviews.length})</h3>
+          <div class="profile-reviews-list">
+            ${reviews.map(review => `
+              <div class="profile-review-item" data-dance-id="${review.danceId}">
+                <div class="profile-review-header">
+                  <div class="profile-review-dance">
+                    <h4>${review.dance.title}</h4>
+                    <span class="profile-review-meta">${review.dance.date} | ${review.dance.venue}</span>
+                  </div>
+                  <div class="profile-review-date">${formatDate(new Date(review.createdAt))}</div>
+                </div>
+                <div class="profile-review-ratings">
+                  <div class="review-rating-item">
+                    <span>场地</span>
+                    ${renderStars(review.venueRating)}
+                  </div>
+                  <div class="review-rating-item">
+                    <span>音乐</span>
+                    ${renderStars(review.musicRating)}
+                  </div>
+                  <div class="review-rating-item">
+                    <span>组织</span>
+                    ${renderStars(review.organizationRating)}
+                  </div>
+                </div>
+                ${review.comment ? `<div class="profile-review-comment">${review.comment}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    } else {
+      reviewsHtml = `
+        <div class="profile-section">
+          <h3>📝 我的评价</h3>
+          <div class="empty-state">
+            <div class="empty-icon">💭</div>
+            <p>还没有写过评价</p>
+            <p class="empty-hint">参加完舞会后记得来写评价哦</p>
+          </div>
+        </div>
+      `;
+    }
+    
+    container.innerHTML = `
+      <div class="profile-header">
+        <div class="profile-avatar-large">
+          <img src="${currentUser.avatar}" alt="${currentUser.name}">
+        </div>
+        <div class="profile-info">
+          <h2>${currentUser.name}</h2>
+          <div class="profile-tags">
+            <span class="role-badge role-${currentUser.role}">${roleText}</span>
+            <span class="level-badge level-${currentUser.level}">${levelText}</span>
+          </div>
+          <div class="profile-stats">
+            <div class="profile-stat">
+              <span class="stat-value">${currentUser.danceYears}</span>
+              <span class="stat-label">舞龄</span>
+            </div>
+            <div class="profile-stat">
+              <span class="stat-value">${reviews.length}</span>
+              <span class="stat-label">评价</span>
+            </div>
+            <div class="profile-stat">
+              <span class="stat-value">${currentUser.city}</span>
+              <span class="stat-label">城市</span>
+            </div>
+          </div>
+          <div class="profile-styles">
+            <span class="info-label">擅长舞种：</span>
+            ${styleTags}
+          </div>
+          ${currentUser.bio ? `<div class="profile-bio">${currentUser.bio}</div>` : ''}
+        </div>
+      </div>
+      ${reviewsHtml}
+    `;
+    
+    container.querySelectorAll('.profile-review-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const danceId = parseInt(item.dataset.danceId);
+        document.querySelector('.nav-btn[data-view="calendar"]').click();
+        showDanceDetail(danceId);
+      });
+    });
+    
+  } catch (e) {
+    console.error('加载用户资料失败:', e);
+    container.innerHTML = '<div style="text-align:center;color:#999;padding:40px;">加载失败，请重试</div>';
   }
 }
 

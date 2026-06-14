@@ -175,15 +175,51 @@ let invitations = [
   }
 ];
 
+let reviews = [
+  {
+    id: 1,
+    danceId: 1,
+    userId: 2,
+    venueRating: 5,
+    musicRating: 4,
+    organizationRating: 4,
+    comment: "场地很棒，氛围很好！音乐稍微有点小，但整体体验不错，下次还会来。",
+    createdAt: "2026-06-16T10:30:00Z"
+  },
+  {
+    id: 2,
+    danceId: 1,
+    userId: 3,
+    venueRating: 4,
+    musicRating: 5,
+    organizationRating: 5,
+    comment: "DJ选曲非常专业，组织也很有序，就是空调有点冷。",
+    createdAt: "2026-06-16T12:15:00Z"
+  },
+  {
+    id: 3,
+    danceId: 2,
+    userId: 1,
+    venueRating: 5,
+    musicRating: 5,
+    organizationRating: 5,
+    comment: "工作坊内容很充实，老师教得很好，舞会练习时间也很充足。",
+    createdAt: "2026-06-17T09:00:00Z"
+  }
+];
+
 let nextDanceId = 6;
 let nextUserId = 6;
 let nextInvitationId = 3;
+let nextReviewId = 4;
 
 module.exports = {
   dances,
   users,
   invitations,
+  reviews,
   getNextDanceId: () => nextDanceId++,
   getNextUserId: () => nextUserId++,
-  getNextInvitationId: () => nextInvitationId++
+  getNextInvitationId: () => nextInvitationId++,
+  getNextReviewId: () => nextReviewId++
 };

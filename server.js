@@ -6,6 +6,7 @@ const path = require('path');
 const dancesRouter = require('./routes/dances');
 const usersRouter = require('./routes/users');
 const invitationsRouter = require('./routes/invitations');
+const reviewsRouter = require('./routes/reviews');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -19,6 +20,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/dances', dancesRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/invitations', invitationsRouter);
+app.use('/api/reviews', reviewsRouter);
 
 app.get('/api', (req, res) => {
   res.json({
@@ -27,7 +29,8 @@ app.get('/api', (req, res) => {
     endpoints: {
       dances: '/api/dances',
       users: '/api/users',
-      invitations: '/api/invitations'
+      invitations: '/api/invitations',
+      reviews: '/api/reviews'
     }
   });
 });
