@@ -6,6 +6,7 @@ let currentUser = null;
 let allDances = [];
 let allUsers = [];
 let inviteTargetUserId = null;
+let preselectedDanceId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
@@ -167,6 +168,7 @@ async function loadDances() {
     renderCalendar();
     renderDanceList();
     populateInviteDanceSelect();
+    renderMapMarkers();
   } catch (e) {
     console.error('加载舞会失败:', e);
   }
@@ -299,8 +301,13 @@ function inviteToDance(danceId) {
     showToast('请先选择身份', 'error');
     return;
   }
+  preselectedDanceId = danceId;
+  const dance = allDances.find(d => d.id === danceId);
   closeModal();
   document.querySelector('.nav-btn[data-view="partners"]').click();
+  if (dance) {
+    showToast(`已选择「${dance.title}」，请选择舞伴发起邀约`, 'success');
+  }
 }
 
 async function loadUsers() {
@@ -486,17 +493,58 @@ async function loadHotRanking() {
 }
 
 function initMap() {
-  document.querySelectorAll('.map-marker').forEach(marker => {
-    marker.addEventListener('click', () => {
+  document.getElementById('mapMarkersContainer').addEventListener('click', (e) => {
+    const marker = e.target.closest('.map-marker');
+    if (marker) {
       const id = parseInt(marker.dataset.id);
       showDanceDetail(id);
-    });
+    }
   });
   
   document.getElementById('refreshLocation').addEventListener('click', () => {
     showToast('已刷新位置', 'success');
     loadNearbyDances();
+    renderMapMarkers();
   });
+}
+
+function renderMapMarkers() {
+  const container = document.getElementById('mapMarkersContainer');
+  if (!container) return;
+  
+  if (allDances.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+  
+  const lats = allDances.map(d => d.latitude);
+  const lngs = allDances.map(d => d.longitude);
+  
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  
+  const latRange = maxLat - minLat || 0.1;
+  const lngRange = maxLng - minLng || 0.1;
+  
+  const padding = 15;
+  
+  const icons = ['💃', '🎭', '☀️', '⭐', '🌴', '🎵', '🔥', '✨', '🌟', '💫'];
+  
+  container.innerHTML = allDances.map((dance, index) => {
+    const top = padding + ((maxLat - dance.latitude) / latRange) * (100 - 2 * padding);
+    const left = padding + ((dance.longitude - minLng) / lngRange) * (100 - 2 * padding);
+    
+    const icon = icons[index % icons.length];
+    
+    return `
+      <div class="map-marker" data-id="${dance.id}" title="${dance.title}" style="top: ${top}%; left: ${left}%;">
+        <span class="marker-icon">${icon}</span>
+        <span class="marker-label">${dance.title}</span>
+      </div>
+    `;
+  }).join('');
 }
 
 function loadNearbyDances() {
@@ -563,6 +611,7 @@ function initPublishForm() {
         form.reset();
         loadDances();
         loadHotRanking();
+        renderMapMarkers();
         document.querySelector('.nav-btn[data-view="calendar"]').click();
       } else {
         const data = await res.json();
@@ -612,6 +661,17 @@ function openInviteModal(userId) {
   const targetUser = allUsers.find(u => u.id === userId);
   
   document.querySelector('#inviteModal h3').textContent = `邀约 ${targetUser.name} 跳舞`;
+  
+  populateInviteDanceSelect();
+  if (preselectedDanceId) {
+    const select = document.getElementById('inviteDanceSelect');
+    select.value = preselectedDanceId;
+    const selectedDance = allDances.find(d => d.id === preselectedDanceId);
+    if (selectedDance) {
+      showToast(`已预选「${selectedDance.title}」`, 'success');
+    }
+  }
+  
   document.getElementById('inviteModal').classList.add('active');
 }
 
@@ -654,6 +714,7 @@ async function sendInvitation(e) {
       showToast('邀约发送成功！', 'success');
       closeInviteModal();
       e.target.reset();
+      preselectedDanceId = null;
     } else {
       const data = await res.json();
       showToast(data.error || '发送失败', 'error');

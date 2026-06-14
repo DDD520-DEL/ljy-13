@@ -459,12 +459,6 @@ body {
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.demo-marker-1 { top: 25%; left: 35%; }
-.demo-marker-2 { top: 35%; left: 25%; }
-.demo-marker-3 { top: 55%; left: 30%; }
-.demo-marker-4 { top: 20%; left: 65%; }
-.demo-marker-5 { top: 60%; left: 60%; }
-
 .map-center-marker {
   position: absolute;
   top: 50%;
