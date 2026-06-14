@@ -482,6 +482,7 @@ async function loadPartners() {
   if (style) params.push(`style=${style}`);
   if (role) params.push(`role=${role}`);
   if (level) params.push(`level=${level}`);
+  if (currentUser) params.push(`currentUserId=${currentUser.id}`);
   
   if (params.length > 0) {
     url += '?' + params.join('&');
@@ -498,7 +499,12 @@ async function loadPartners() {
     users = users.map(u => ({
       ...u,
       matchScore: calculateMatchScore(u)
-    })).sort((a, b) => b.matchScore - a.matchScore);
+    })).sort((a, b) => {
+      if (b.isFollowing !== a.isFollowing) {
+        return b.isFollowing ? 1 : -1;
+      }
+      return b.matchScore - a.matchScore;
+    });
     
     renderPartners(users);
   } catch (e) {
@@ -560,6 +566,22 @@ function renderPartners(users) {
       openInviteModal(userId);
     });
   });
+  
+  container.querySelectorAll('.follow-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const userId = parseInt(btn.dataset.userId);
+      const isFollowing = btn.dataset.following === 'true';
+      
+      if (isFollowing) {
+        await unfollowUser(userId);
+      } else {
+        await followUser(userId);
+      }
+      
+      loadPartners();
+    });
+  });
 }
 
 function createPartnerCard(user) {
@@ -572,6 +594,21 @@ function createPartnerCard(user) {
   
   const matchScore = user.matchScore || 50;
   
+  let followBadge = '';
+  if (user.isMutualFollowing) {
+    followBadge = '<span class="follow-status-badge mutual">🤝 互相关注</span>';
+  } else if (user.isFollowing) {
+    followBadge = '<span class="follow-status-badge following">已关注</span>';
+  }
+  
+  let followBtn = '';
+  if (currentUser) {
+    const isFollowing = user.isFollowing ? 'true' : 'false';
+    const btnClass = user.isFollowing ? 'following' : 'follow';
+    const btnText = user.isFollowing ? '已关注' : '+ 关注';
+    followBtn = `<button class="follow-btn ${btnClass}" data-user-id="${user.id}" data-following="${isFollowing}">${btnText}</button>`;
+  }
+  
   return `
     <div class="partner-card">
       <div class="partner-header">
@@ -579,7 +616,10 @@ function createPartnerCard(user) {
           <img src="${user.avatar}" alt="${user.name}">
         </div>
         <div class="partner-info">
-          <h4>${user.name}</h4>
+          <h4>
+            ${user.name}
+            ${followBadge}
+          </h4>
           <span class="role role-badge role-${user.role}">${roleText}</span>
           <span class="level-badge level-${user.level}">${levelText}</span>
         </div>
@@ -596,7 +636,10 @@ function createPartnerCard(user) {
         </div>
         <span class="match-score-text">${matchScore}%</span>
       </div>
-      <button class="invite-btn" data-user-id="${user.id}">发起邀约</button>
+      <div class="partner-card-actions">
+        <button class="invite-btn" data-user-id="${user.id}">发起邀约</button>
+        ${followBtn}
+      </div>
     </div>
   `;
 }
@@ -1021,8 +1064,16 @@ async function loadUserProfile() {
   }
   
   try {
-    const res = await fetch(`${API_BASE}/reviews?userId=${currentUser.id}`);
-    const reviews = await res.json();
+    const [userRes, reviewsRes] = await Promise.all([
+      fetch(`${API_BASE}/users/${currentUser.id}?currentUserId=${currentUser.id}`),
+      fetch(`${API_BASE}/reviews?userId=${currentUser.id}`)
+    ]);
+    
+    const userData = await userRes.json();
+    const reviews = await reviewsRes.json();
+    
+    const followerCount = userData.followerCount || 0;
+    const followingCount = userData.followingCount || 0;
     
     const roleText = { leader: '引带', follower: '跟随', both: '双修' }[currentUser.role] || currentUser.role;
     const levelText = { beginner: '入门', intermediate: '中级', advanced: '高级' }[currentUser.level] || currentUser.level;
@@ -1095,6 +1146,14 @@ async function loadUserProfile() {
               <span class="stat-value">${currentUser.danceYears}</span>
               <span class="stat-label">舞龄</span>
             </div>
+            <div class="profile-stat follow-stat" id="followingStat">
+              <span class="stat-value">${followingCount}</span>
+              <span class="stat-label">关注</span>
+            </div>
+            <div class="profile-stat follow-stat" id="followersStat">
+              <span class="stat-value">${followerCount}</span>
+              <span class="stat-label">粉丝</span>
+            </div>
             <div class="profile-stat">
               <span class="stat-value">${reviews.length}</span>
               <span class="stat-label">评价</span>
@@ -1111,8 +1170,24 @@ async function loadUserProfile() {
           ${currentUser.bio ? `<div class="profile-bio">${currentUser.bio}</div>` : ''}
         </div>
       </div>
+      <div class="profile-follow-section">
+        <h3>👥 社交关系</h3>
+        <div class="follow-tabs">
+          <button class="follow-tab active" data-tab="following">关注的人 (${followingCount})</button>
+          <button class="follow-tab" data-tab="followers">粉丝 (${followerCount})</button>
+        </div>
+        <div id="followListContent"></div>
+      </div>
       ${reviewsHtml}
     `;
+    
+    document.querySelectorAll('.follow-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        switchFollowTab(currentUser.id, tab.dataset.tab);
+      });
+    });
+    
+    switchFollowTab(currentUser.id, 'following');
     
     container.querySelectorAll('.profile-review-item').forEach(item => {
       item.addEventListener('click', () => {
@@ -1126,6 +1201,155 @@ async function loadUserProfile() {
     console.error('加载用户资料失败:', e);
     container.innerHTML = '<div style="text-align:center;color:#999;padding:40px;">加载失败，请重试</div>';
   }
+}
+
+async function followUser(userId) {
+  if (!currentUser) {
+    showToast('请先选择身份', 'error');
+    return false;
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/users/${userId}/follow`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ followerId: currentUser.id })
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      if (data.isMutualFollowing) {
+        showToast('关注成功！已互相关注 🎉', 'success');
+      } else {
+        showToast('关注成功！', 'success');
+      }
+      return true;
+    } else {
+      const data = await res.json();
+      showToast(data.error || '关注失败', 'error');
+      return false;
+    }
+  } catch (e) {
+    console.error('关注失败:', e);
+    showToast('关注失败', 'error');
+    return false;
+  }
+}
+
+async function unfollowUser(userId) {
+  if (!currentUser) {
+    showToast('请先选择身份', 'error');
+    return false;
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/users/${userId}/follow`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ followerId: currentUser.id })
+    });
+    
+    if (res.ok) {
+      showToast('已取消关注', 'success');
+      return true;
+    } else {
+      const data = await res.json();
+      showToast(data.error || '取消关注失败', 'error');
+      return false;
+    }
+  } catch (e) {
+    console.error('取消关注失败:', e);
+    showToast('取消关注失败', 'error');
+    return false;
+  }
+}
+
+async function loadFollowList(userId, type) {
+  if (!currentUser) return [];
+  
+  try {
+    const res = await fetch(`${API_BASE}/users/${userId}/${type}?currentUserId=${currentUser.id}`);
+    return await res.json();
+  } catch (e) {
+    console.error(`加载${type === 'followers' ? '粉丝' : '关注'}列表失败:`, e);
+    return [];
+  }
+}
+
+function renderFollowList(users, type) {
+  if (users.length === 0) {
+    return `
+      <div class="empty-state">
+        <div class="empty-icon">${type === 'followers' ? '👥' : '💫'}</div>
+        <p>还没有${type === 'followers' ? '粉丝' : '关注的人'}</p>
+      </div>
+    `;
+  }
+  
+  return `
+    <div class="follow-list">
+      ${users.map(user => {
+        const roleText = { leader: '引带', follower: '跟随', both: '双修' }[user.role] || user.role;
+        let badge = '';
+        if (user.isMutualFollowing) {
+          badge = '<span class="follow-status-badge mutual">互相关注</span>';
+        } else if (user.isFollowing) {
+          badge = '<span class="follow-status-badge following">已关注</span>';
+        }
+        
+        let btn = '';
+        if (currentUser && user.id !== currentUser.id) {
+          const isFollowing = user.isFollowing ? 'true' : 'false';
+          const btnClass = user.isFollowing ? 'following' : 'follow';
+          const btnText = user.isFollowing ? '已关注' : '+ 关注';
+          btn = `<button class="follow-btn ${btnClass}" data-user-id="${user.id}" data-following="${isFollowing}">${btnText}</button>`;
+        }
+        
+        return `
+          <div class="follow-user-item">
+            <div class="follow-user-avatar">
+              <img src="${user.avatar}" alt="${user.name}">
+            </div>
+            <div class="follow-user-info">
+              <div class="name">${user.name} ${badge}</div>
+              <div class="meta">${roleText} · ${user.danceYears}年舞龄</div>
+            </div>
+            ${btn}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+async function switchFollowTab(userId, tabType) {
+  const tabs = document.querySelectorAll('.follow-tab');
+  tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabType));
+  
+  const container = document.getElementById('followListContent');
+  if (!container) return;
+  
+  const users = await loadFollowList(userId, tabType);
+  container.innerHTML = renderFollowList(users, tabType);
+  
+  container.querySelectorAll('.follow-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const targetUserId = parseInt(btn.dataset.userId);
+      const isFollowing = btn.dataset.following === 'true';
+      
+      if (isFollowing) {
+        await unfollowUser(targetUserId);
+      } else {
+        await followUser(targetUserId);
+      }
+      
+      switchFollowTab(userId, tabType);
+      if (document.getElementById('profile-view').classList.contains('active')) {
+        loadUserProfile();
+      }
+    });
+  });
 }
 
 function showToast(message, type = 'success') {

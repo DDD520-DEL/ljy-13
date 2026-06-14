@@ -2,10 +2,19 @@ const express = require('express');
 const router = express.Router();
 const db = require('../data/database');
 
-let { users, getNextUserId } = db;
+let { 
+  users, 
+  getNextUserId, 
+  isFollowing, 
+  isMutualFollowing, 
+  getFollowers, 
+  getFollowing, 
+  addFollow, 
+  removeFollow 
+} = db;
 
 router.get('/', (req, res) => {
-  const { style, level, role, city } = req.query;
+  const { style, level, role, city, currentUserId } = req.query;
   
   let filtered = [...users];
   
@@ -25,15 +34,37 @@ router.get('/', (req, res) => {
     filtered = filtered.filter(u => u.city === city);
   }
   
+  if (currentUserId) {
+    const cid = parseInt(currentUserId);
+    filtered = filtered.map(u => ({
+      ...u,
+      isFollowing: isFollowing(cid, u.id),
+      isMutualFollowing: isMutualFollowing(cid, u.id)
+    }));
+  }
+  
   res.json(filtered);
 });
 
 router.get('/:id', (req, res) => {
+  const { currentUserId } = req.query;
   const user = users.find(u => u.id === parseInt(req.params.id));
   if (!user) {
     return res.status(404).json({ error: '用户不存在' });
   }
-  res.json(user);
+  
+  const result = { ...user };
+  
+  if (currentUserId) {
+    const cid = parseInt(currentUserId);
+    result.isFollowing = isFollowing(cid, user.id);
+    result.isMutualFollowing = isMutualFollowing(cid, user.id);
+  }
+  
+  result.followerCount = getFollowers(user.id).length;
+  result.followingCount = getFollowing(user.id).length;
+  
+  res.json(result);
 });
 
 router.post('/', (req, res) => {
@@ -111,15 +142,129 @@ router.get('/match/:userId', (req, res) => {
       score += 15;
     }
     
-    return { ...candidate, matchScore: score };
+    const following = isFollowing(userId, candidate.id);
+    const mutual = following && isFollowing(candidate.id, userId);
+    
+    if (following) {
+      score += 50;
+    }
+    
+    return { 
+      ...candidate, 
+      matchScore: score,
+      isFollowing: following,
+      isMutualFollowing: mutual
+    };
   });
   
-  candidates.sort((a, b) => b.matchScore - a.matchScore);
+  candidates.sort((a, b) => {
+    if (b.isFollowing !== a.isFollowing) {
+      return b.isFollowing ? 1 : -1;
+    }
+    return b.matchScore - a.matchScore;
+  });
   
   res.json({
     currentUser,
     matches: candidates
   });
+});
+
+router.post('/:id/follow', (req, res) => {
+  const followingId = parseInt(req.params.id);
+  const { followerId } = req.body;
+  
+  if (!followerId) {
+    return res.status(400).json({ error: '缺少followerId' });
+  }
+  
+  if (followerId === followingId) {
+    return res.status(400).json({ error: '不能关注自己' });
+  }
+  
+  const follower = users.find(u => u.id === followerId);
+  const following = users.find(u => u.id === followingId);
+  
+  if (!follower || !following) {
+    return res.status(404).json({ error: '用户不存在' });
+  }
+  
+  const result = addFollow(followerId, followingId);
+  
+  if (!result) {
+    return res.status(400).json({ error: '已经关注过该用户' });
+  }
+  
+  res.status(201).json({
+    message: '关注成功',
+    follow: result,
+    isMutualFollowing: isMutualFollowing(followerId, followingId)
+  });
+});
+
+router.delete('/:id/follow', (req, res) => {
+  const followingId = parseInt(req.params.id);
+  const { followerId } = req.body;
+  
+  if (!followerId) {
+    return res.status(400).json({ error: '缺少followerId' });
+  }
+  
+  const result = removeFollow(followerId, followingId);
+  
+  if (!result) {
+    return res.status(400).json({ error: '未关注该用户' });
+  }
+  
+  res.json({ message: '取消关注成功' });
+});
+
+router.get('/:id/followers', (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { currentUserId } = req.query;
+  
+  const user = users.find(u => u.id === userId);
+  if (!user) {
+    return res.status(404).json({ error: '用户不存在' });
+  }
+  
+  const followerIds = getFollowers(userId).map(f => f.followerId);
+  const followers = users.filter(u => followerIds.includes(u.id));
+  
+  if (currentUserId) {
+    const cid = parseInt(currentUserId);
+    res.json(followers.map(u => ({
+      ...u,
+      isFollowing: isFollowing(cid, u.id),
+      isMutualFollowing: isMutualFollowing(cid, u.id)
+    })));
+  } else {
+    res.json(followers);
+  }
+});
+
+router.get('/:id/following', (req, res) => {
+  const userId = parseInt(req.params.id);
+  const { currentUserId } = req.query;
+  
+  const user = users.find(u => u.id === userId);
+  if (!user) {
+    return res.status(404).json({ error: '用户不存在' });
+  }
+  
+  const followingIds = getFollowing(userId).map(f => f.followingId);
+  const following = users.filter(u => followingIds.includes(u.id));
+  
+  if (currentUserId) {
+    const cid = parseInt(currentUserId);
+    res.json(following.map(u => ({
+      ...u,
+      isFollowing: isFollowing(cid, u.id),
+      isMutualFollowing: isMutualFollowing(cid, u.id)
+    })));
+  } else {
+    res.json(following);
+  }
 });
 
 function getLevelValue(level) {

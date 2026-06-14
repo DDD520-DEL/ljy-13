@@ -208,18 +208,92 @@ let reviews = [
   }
 ];
 
+let follows = [
+  {
+    id: 1,
+    followerId: 1,
+    followingId: 2,
+    createdAt: "2026-06-10T08:00:00Z"
+  },
+  {
+    id: 2,
+    followerId: 2,
+    followingId: 1,
+    createdAt: "2026-06-11T10:00:00Z"
+  },
+  {
+    id: 3,
+    followerId: 1,
+    followingId: 3,
+    createdAt: "2026-06-12T15:30:00Z"
+  },
+  {
+    id: 4,
+    followerId: 4,
+    followingId: 1,
+    createdAt: "2026-06-13T09:20:00Z"
+  }
+];
+
 let nextDanceId = 6;
 let nextUserId = 6;
 let nextInvitationId = 3;
 let nextReviewId = 4;
+let nextFollowId = 5;
+
+function isFollowing(followerId, followingId) {
+  return follows.some(f => f.followerId === followerId && f.followingId === followingId);
+}
+
+function isMutualFollowing(userId1, userId2) {
+  return isFollowing(userId1, userId2) && isFollowing(userId2, userId1);
+}
+
+function getFollowers(userId) {
+  return follows.filter(f => f.followingId === userId);
+}
+
+function getFollowing(userId) {
+  return follows.filter(f => f.followerId === userId);
+}
+
+function addFollow(followerId, followingId) {
+  if (isFollowing(followerId, followingId)) {
+    return null;
+  }
+  const newFollow = {
+    id: nextFollowId++,
+    followerId,
+    followingId,
+    createdAt: new Date().toISOString()
+  };
+  follows.push(newFollow);
+  return newFollow;
+}
+
+function removeFollow(followerId, followingId) {
+  const index = follows.findIndex(f => f.followerId === followerId && f.followingId === followingId);
+  if (index === -1) {
+    return false;
+  }
+  follows.splice(index, 1);
+  return true;
+}
 
 module.exports = {
   dances,
   users,
   invitations,
   reviews,
+  follows,
   getNextDanceId: () => nextDanceId++,
   getNextUserId: () => nextUserId++,
   getNextInvitationId: () => nextInvitationId++,
-  getNextReviewId: () => nextReviewId++
+  getNextReviewId: () => nextReviewId++,
+  isFollowing,
+  isMutualFollowing,
+  getFollowers,
+  getFollowing,
+  addFollow,
+  removeFollow
 };

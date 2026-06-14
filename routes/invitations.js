@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const db = require('../data/database');
 
-let { invitations, dances, users, getNextInvitationId } = db;
+let { invitations, dances, users, getNextInvitationId, isFollowing, isMutualFollowing } = db;
 
 router.get('/', (req, res) => {
-  const { userId, danceId, status } = req.query;
+  const { userId, danceId, status, currentUserId } = req.query;
   
   let filtered = [...invitations];
   
@@ -22,15 +22,37 @@ router.get('/', (req, res) => {
     filtered = filtered.filter(i => i.status === status);
   }
   
+  const cid = currentUserId ? parseInt(currentUserId) : null;
+  
   const result = filtered.map(inv => {
     const dance = dances.find(d => d.id === inv.danceId);
     const fromUser = users.find(u => u.id === inv.fromUserId);
     const toUser = users.find(u => u.id === inv.toUserId);
+    
+    let fromUserData = null;
+    let toUserData = null;
+    
+    if (fromUser) {
+      fromUserData = { id: fromUser.id, name: fromUser.name, avatar: fromUser.avatar };
+      if (cid) {
+        fromUserData.isFollowing = isFollowing(cid, fromUser.id);
+        fromUserData.isMutualFollowing = isMutualFollowing(cid, fromUser.id);
+      }
+    }
+    
+    if (toUser) {
+      toUserData = { id: toUser.id, name: toUser.name, avatar: toUser.avatar };
+      if (cid) {
+        toUserData.isFollowing = isFollowing(cid, toUser.id);
+        toUserData.isMutualFollowing = isMutualFollowing(cid, toUser.id);
+      }
+    }
+    
     return {
       ...inv,
       dance: dance ? { id: dance.id, title: dance.title, date: dance.date, venue: dance.venue } : null,
-      fromUser: fromUser ? { id: fromUser.id, name: fromUser.name, avatar: fromUser.avatar } : null,
-      toUser: toUser ? { id: toUser.id, name: toUser.name, avatar: toUser.avatar } : null
+      fromUser: fromUserData,
+      toUser: toUserData
     };
   });
   
@@ -38,6 +60,7 @@ router.get('/', (req, res) => {
 });
 
 router.get('/:id', (req, res) => {
+  const { currentUserId } = req.query;
   const invitation = invitations.find(i => i.id === parseInt(req.params.id));
   if (!invitation) {
     return res.status(404).json({ error: '邀约不存在' });
@@ -47,11 +70,26 @@ router.get('/:id', (req, res) => {
   const fromUser = users.find(u => u.id === invitation.fromUserId);
   const toUser = users.find(u => u.id === invitation.toUserId);
   
+  const cid = currentUserId ? parseInt(currentUserId) : null;
+  
+  let fromUserData = fromUser ? { ...fromUser } : null;
+  let toUserData = toUser ? { ...toUser } : null;
+  
+  if (cid && fromUserData) {
+    fromUserData.isFollowing = isFollowing(cid, fromUser.id);
+    fromUserData.isMutualFollowing = isMutualFollowing(cid, fromUser.id);
+  }
+  
+  if (cid && toUserData) {
+    toUserData.isFollowing = isFollowing(cid, toUser.id);
+    toUserData.isMutualFollowing = isMutualFollowing(cid, toUser.id);
+  }
+  
   res.json({
     ...invitation,
     dance,
-    fromUser,
-    toUser
+    fromUser: fromUserData,
+    toUser: toUserData
   });
 });
 
