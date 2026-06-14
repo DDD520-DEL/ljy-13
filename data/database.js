@@ -15,6 +15,8 @@ let dances = [
     longitude: 121.4737,
     viewCount: 328,
     attendeeCount: 45,
+    maxAttendees: 60,
+    registrationDeadline: "2026-06-19T18:00:00Z",
     createdAt: "2026-06-01T10:00:00Z"
   },
   {
@@ -33,6 +35,8 @@ let dances = [
     longitude: 121.4475,
     viewCount: 256,
     attendeeCount: 32,
+    maxAttendees: 40,
+    registrationDeadline: "2026-06-20T12:00:00Z",
     createdAt: "2026-06-02T14:30:00Z"
   },
   {
@@ -51,6 +55,8 @@ let dances = [
     longitude: 121.4365,
     viewCount: 189,
     attendeeCount: 28,
+    maxAttendees: 50,
+    registrationDeadline: "2026-06-22T12:00:00Z",
     createdAt: "2026-06-03T09:15:00Z"
   },
   {
@@ -69,6 +75,8 @@ let dances = [
     longitude: 121.4998,
     viewCount: 145,
     attendeeCount: 20,
+    maxAttendees: 30,
+    registrationDeadline: "2026-06-24T18:00:00Z",
     createdAt: "2026-06-05T16:45:00Z"
   },
   {
@@ -87,6 +95,8 @@ let dances = [
     longitude: 121.3936,
     viewCount: 512,
     attendeeCount: 68,
+    maxAttendees: 100,
+    registrationDeadline: "2026-06-27T20:00:00Z",
     createdAt: "2026-06-04T11:20:00Z"
   }
 ];
@@ -248,12 +258,23 @@ let notifications = [
   }
 ];
 
+let danceRegistrations = [
+  { id: 1, danceId: 1, userId: 1, createdAt: "2026-06-10T08:00:00Z" },
+  { id: 2, danceId: 1, userId: 2, createdAt: "2026-06-11T09:00:00Z" },
+  { id: 3, danceId: 1, userId: 3, createdAt: "2026-06-11T10:00:00Z" },
+  { id: 4, danceId: 2, userId: 1, createdAt: "2026-06-12T14:00:00Z" },
+  { id: 5, danceId: 2, userId: 3, createdAt: "2026-06-13T11:00:00Z" },
+  { id: 6, danceId: 5, userId: 3, createdAt: "2026-06-08T14:20:00Z" },
+  { id: 7, danceId: 5, userId: 4, createdAt: "2026-06-09T10:00:00Z" }
+];
+
 let nextDanceId = 6;
 let nextUserId = 6;
 let nextInvitationId = 3;
 let nextReviewId = 4;
 let nextFollowId = 5;
 let nextNotificationId = 2;
+let nextRegistrationId = 8;
 
 function isFollowing(followerId, followingId) {
   return follows.some(f => f.followerId === followerId && f.followingId === followingId);
@@ -337,6 +358,76 @@ function markAllAsRead(userId) {
   return true;
 }
 
+function getDanceRegistrations(danceId) {
+  return danceRegistrations.filter(r => r.danceId === danceId);
+}
+
+function getUserRegistrations(userId) {
+  return danceRegistrations.filter(r => r.userId === userId);
+}
+
+function isRegistered(danceId, userId) {
+  return danceRegistrations.some(r => r.danceId === danceId && r.userId === userId);
+}
+
+function addRegistration(danceId, userId) {
+  if (isRegistered(danceId, userId)) {
+    return null;
+  }
+  const dance = dances.find(d => d.id === danceId);
+  if (!dance) {
+    return null;
+  }
+  const newRegistration = {
+    id: nextRegistrationId++,
+    danceId,
+    userId,
+    createdAt: new Date().toISOString()
+  };
+  danceRegistrations.push(newRegistration);
+  dance.attendeeCount++;
+  return newRegistration;
+}
+
+function removeRegistration(danceId, userId) {
+  const index = danceRegistrations.findIndex(r => r.danceId === danceId && r.userId === userId);
+  if (index === -1) {
+    return false;
+  }
+  danceRegistrations.splice(index, 1);
+  const dance = dances.find(d => d.id === danceId);
+  if (dance && dance.attendeeCount > 0) {
+    dance.attendeeCount--;
+  }
+  return true;
+}
+
+function getRegisteredUsers(danceId) {
+  const registrations = getDanceRegistrations(danceId);
+  return registrations.map(r => users.find(u => u.id === r.userId)).filter(Boolean);
+}
+
+function getUserRegisteredDances(userId) {
+  const registrations = getUserRegistrations(userId);
+  return registrations.map(r => dances.find(d => d.id === r.danceId)).filter(Boolean);
+}
+
+function isRegistrationFull(danceId) {
+  const dance = dances.find(d => d.id === danceId);
+  if (!dance || !dance.maxAttendees) {
+    return false;
+  }
+  return dance.attendeeCount >= dance.maxAttendees;
+}
+
+function isRegistrationClosed(danceId) {
+  const dance = dances.find(d => d.id === danceId);
+  if (!dance || !dance.registrationDeadline) {
+    return false;
+  }
+  return new Date() > new Date(dance.registrationDeadline);
+}
+
 module.exports = {
   dances,
   users,
@@ -344,6 +435,7 @@ module.exports = {
   reviews,
   follows,
   notifications,
+  danceRegistrations,
   getNextDanceId: () => nextDanceId++,
   getNextUserId: () => nextUserId++,
   getNextInvitationId: () => nextInvitationId++,
@@ -358,5 +450,14 @@ module.exports = {
   getUnreadCount,
   addNotification,
   markAsRead,
-  markAllAsRead
+  markAllAsRead,
+  getDanceRegistrations,
+  getUserRegistrations,
+  isRegistered,
+  addRegistration,
+  removeRegistration,
+  getRegisteredUsers,
+  getUserRegisteredDances,
+  isRegistrationFull,
+  isRegistrationClosed
 };

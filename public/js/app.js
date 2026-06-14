@@ -177,6 +177,7 @@ function renderStars(rating, size = 'small') {
 function initFilters() {
   document.getElementById('styleFilter').addEventListener('change', renderDanceList);
   document.getElementById('sortSelect').addEventListener('change', renderDanceList);
+  document.getElementById('partnerDance').addEventListener('change', loadPartners);
   document.getElementById('partnerStyle').addEventListener('change', loadPartners);
   document.getElementById('partnerRole').addEventListener('change', loadPartners);
   document.getElementById('partnerLevel').addEventListener('change', loadPartners);
@@ -191,6 +192,7 @@ async function loadDances() {
     renderCalendar();
     renderDanceList();
     populateInviteDanceSelect();
+    populatePartnerDanceSelect();
     renderMapMarkers();
   } catch (e) {
     console.error('加载舞会失败:', e);
@@ -236,6 +238,15 @@ function renderDanceList() {
   });
 }
 
+function getDanceStatus(dance) {
+  const isFull = dance.maxAttendees && dance.attendeeCount >= dance.maxAttendees;
+  const isClosed = dance.registrationDeadline && new Date() > new Date(dance.registrationDeadline);
+  
+  if (isClosed) return 'closed';
+  if (isFull) return 'full';
+  return 'open';
+}
+
 function createDanceCard(dance) {
   const styleTags = dance.styles.map(s => 
     `<span class="style-tag style-${s.toLowerCase()}">${s}</span>`
@@ -245,10 +256,23 @@ function createDanceCard(dance) {
   const dateStr = `${dateObj.getMonth() + 1}月${dateObj.getDate()}日`;
   const weekDay = ['周日','周一','周二','周三','周四','周五','周六'][dateObj.getDay()];
   
+  const status = getDanceStatus(dance);
+  let statusBadge = '';
+  if (status === 'full') {
+    statusBadge = '<span class="status-badge status-full">已满</span>';
+  } else if (status === 'closed') {
+    statusBadge = '<span class="status-badge status-closed">已截止</span>';
+  }
+  
+  let attendeeDisplay = `👥 ${dance.attendeeCount}`;
+  if (dance.maxAttendees) {
+    attendeeDisplay = `👥 ${dance.attendeeCount}/${dance.maxAttendees}`;
+  }
+  
   return `
     <div class="dance-card" data-id="${dance.id}">
       <div class="dance-card-header">
-        <h4>${dance.title}</h4>
+        <h4>${dance.title} ${statusBadge}</h4>
         <div class="dance-card-time">${dateStr} ${weekDay} ${dance.startTime} - ${dance.endTime}</div>
       </div>
       <div class="dance-card-body">
@@ -265,7 +289,7 @@ function createDanceCard(dance) {
         </div>
         <div class="dance-stats">
           <span>👁 ${dance.viewCount}</span>
-          <span>👥 ${dance.attendeeCount}</span>
+          <span>${attendeeDisplay}</span>
         </div>
       </div>
     </div>
@@ -274,16 +298,21 @@ function createDanceCard(dance) {
 
 async function showDanceDetail(id) {
   try {
-    const danceRes = await fetch(`${API_BASE}/dances/${id}`);
+    const url = currentUser 
+      ? `${API_BASE}/dances/${id}?userId=${currentUser.id}`
+      : `${API_BASE}/dances/${id}`;
+    const danceRes = await fetch(url);
     const dance = await danceRes.json();
     
-    const [avgRes, reviewsRes] = await Promise.all([
+    const [avgRes, reviewsRes, registeredUsersRes] = await Promise.all([
       fetch(`${API_BASE}/reviews/dance/${id}/average`),
-      fetch(`${API_BASE}/reviews?danceId=${id}`)
+      fetch(`${API_BASE}/reviews?danceId=${id}`),
+      fetch(`${API_BASE}/dances/${id}/registered-users`)
     ]);
     
     const averages = await avgRes.json();
     const reviews = await reviewsRes.json();
+    const registeredUsers = await registeredUsersRes.json();
     
     const userReview = currentUser 
       ? reviews.find(r => r.userId === currentUser.id) 
@@ -298,6 +327,60 @@ async function showDanceDetail(id) {
     const dateObj = new Date(dance.date);
     const dateStr = `${dateObj.getFullYear()}年${dateObj.getMonth() + 1}月${dateObj.getDate()}日`;
     const weekDay = ['周日','周一','周二','周三','周四','周五','周六'][dateObj.getDay()];
+    
+    let registrationInfoHtml = '';
+    if (dance.maxAttendees || dance.registrationDeadline) {
+      let deadlineStr = '';
+      if (dance.registrationDeadline) {
+        const deadlineObj = new Date(dance.registrationDeadline);
+        deadlineStr = `${deadlineObj.getFullYear()}年${deadlineObj.getMonth() + 1}月${deadlineObj.getDate()}日 ${deadlineObj.getHours().toString().padStart(2, '0')}:${deadlineObj.getMinutes().toString().padStart(2, '0')}`;
+      }
+      
+      registrationInfoHtml = `
+        <div class="registration-info">
+          <h4>报名信息</h4>
+          <div class="registration-details">
+            ${dance.maxAttendees ? `<div><span class="info-label">人数上限:</span> ${dance.maxAttendees} 人</div>` : ''}
+            ${dance.registrationDeadline ? `<div><span class="info-label">报名截止:</span> ${deadlineStr}</div>` : ''}
+            <div><span class="info-label">已报名:</span> ${dance.attendeeCount}${dance.maxAttendees ? `/${dance.maxAttendees}` : ''} 人</div>
+          </div>
+        </div>
+      `;
+    }
+    
+    let registeredUsersHtml = '';
+    if (registeredUsers.length > 0) {
+      registeredUsersHtml = `
+        <div class="registered-users-section">
+          <h4>已报名舞者 (${registeredUsers.length})</h4>
+          <div class="registered-users-list">
+            ${registeredUsers.map(user => `
+              <div class="registered-user-item" title="${user.name}">
+                <img src="${user.avatar}" alt="${user.name}" class="registered-user-avatar">
+                <span class="registered-user-name">${user.name}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+    
+    let registerButtonHtml = '';
+    if (currentUser) {
+      const isFull = dance.isFull;
+      const isClosed = dance.isClosed;
+      const isRegistered = dance.isRegistered;
+      
+      if (isClosed) {
+        registerButtonHtml = `<button class="btn btn-disabled" disabled>报名已截止</button>`;
+      } else if (isFull) {
+        registerButtonHtml = `<button class="btn btn-disabled" disabled>名额已满</button>`;
+      } else if (isRegistered) {
+        registerButtonHtml = `<button class="btn btn-secondary" onclick="cancelRegistration(${dance.id})">取消报名</button>`;
+      } else {
+        registerButtonHtml = `<button class="btn btn-primary" onclick="registerForDance(${dance.id})">我要参加</button>`;
+      }
+    }
     
     let ratingsHtml = '';
     if (averages.count > 0) {
@@ -399,17 +482,20 @@ async function showDanceDetail(id) {
         <div><span class="info-label">主办方:</span> ${dance.organizer}</div>
         <div><span class="info-label">票价:</span> ¥${dance.price}</div>
         <div><span class="info-label">舞种:</span> ${styleTags}</div>
-        <div><span class="info-label">热度:</span> 👁 ${dance.viewCount} 次浏览 | 👥 ${dance.attendeeCount} 人参加</div>
+        <div><span class="info-label">热度:</span> 👁 ${dance.viewCount} 次浏览 | 👥 ${dance.attendeeCount}${dance.maxAttendees ? `/${dance.maxAttendees}` : ''} 人参加</div>
       </div>
+      ${registrationInfoHtml}
       <div class="modal-dance-desc">
         <h4>舞会介绍</h4>
         <p>${dance.description || '暂无介绍'}</p>
       </div>
+      ${registeredUsersHtml}
       ${ratingsHtml}
       ${reviewsHtml}
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
         ${reviewButtonHtml}
+        ${registerButtonHtml}
         <button class="btn btn-primary" onclick="inviteToDance(${dance.id})">邀约舞伴</button>
       </div>
     `;
@@ -423,6 +509,68 @@ async function showDanceDetail(id) {
 
 function closeModal() {
   document.getElementById('danceModal').classList.remove('active');
+}
+
+async function registerForDance(danceId) {
+  if (!currentUser) {
+    showToast('请先选择身份', 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/dances/${danceId}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id })
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      showToast('报名成功！', 'success');
+      await loadDances();
+      await loadUnreadCount();
+      populatePartnerDanceSelect();
+      showDanceDetail(danceId);
+    } else {
+      const data = await res.json();
+      showToast(data.error || '报名失败', 'error');
+    }
+  } catch (e) {
+    console.error('报名失败:', e);
+    showToast('报名失败', 'error');
+  }
+}
+
+async function cancelRegistration(danceId) {
+  if (!currentUser) {
+    showToast('请先选择身份', 'error');
+    return;
+  }
+  
+  if (!confirm('确定要取消报名吗？')) {
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/dances/${danceId}/register`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id })
+    });
+    
+    if (res.ok) {
+      showToast('已取消报名', 'success');
+      await loadDances();
+      populatePartnerDanceSelect();
+      showDanceDetail(danceId);
+    } else {
+      const data = await res.json();
+      showToast(data.error || '取消失败', 'error');
+    }
+  } catch (e) {
+    console.error('取消报名失败:', e);
+    showToast('取消失败', 'error');
+  }
 }
 
 function inviteToDance(danceId) {
@@ -456,6 +604,7 @@ async function loadUsers() {
       if (e.target.value) {
         currentUser = allUsers.find(u => u.id === parseInt(e.target.value));
         showToast(`已切换为 ${currentUser.name}`, 'success');
+        populatePartnerDanceSelect();
         loadPartners();
         loadUnreadCount();
         if (document.getElementById('profile-view').classList.contains('active')) {
@@ -463,6 +612,7 @@ async function loadUsers() {
         }
       } else {
         currentUser = null;
+        populatePartnerDanceSelect();
         loadUnreadCount();
         if (document.getElementById('profile-view').classList.contains('active')) {
           loadUserProfile();
@@ -475,6 +625,7 @@ async function loadUsers() {
 }
 
 async function loadPartners() {
+  const danceFilter = document.getElementById('partnerDance').value;
   const style = document.getElementById('partnerStyle').value;
   const role = document.getElementById('partnerRole').value;
   const level = document.getElementById('partnerLevel').value;
@@ -497,6 +648,35 @@ async function loadPartners() {
     
     if (currentUser) {
       users = users.filter(u => u.id !== currentUser.id);
+    }
+    
+    if (danceFilter && currentUser) {
+      if (danceFilter === 'my-registered') {
+        const myRegisteredDancesRes = await fetch(`${API_BASE}/dances/user/${currentUser.id}/registered`);
+        const myRegisteredDances = await myRegisteredDancesRes.json();
+        
+        if (myRegisteredDances.length > 0) {
+          const registeredUserIds = new Set();
+          for (const dance of myRegisteredDances) {
+            const danceUsersRes = await fetch(`${API_BASE}/dances/${dance.id}/registered-users`);
+            const danceUsers = await danceUsersRes.json();
+            danceUsers.forEach(u => {
+              if (u.id !== currentUser.id) {
+                registeredUserIds.add(u.id);
+              }
+            });
+          }
+          users = users.filter(u => registeredUserIds.has(u.id));
+        } else {
+          users = [];
+        }
+      } else if (danceFilter.startsWith('dance-')) {
+        const danceId = parseInt(danceFilter.replace('dance-', ''));
+        const danceUsersRes = await fetch(`${API_BASE}/dances/${danceId}/registered-users`);
+        const danceUsers = await danceUsersRes.json();
+        const danceUserIds = new Set(danceUsers.map(u => u.id));
+        users = users.filter(u => danceUserIds.has(u.id) && u.id !== currentUser.id);
+      }
     }
     
     users = users.map(u => ({
@@ -764,6 +944,9 @@ function initPublishForm() {
       return;
     }
     
+    const maxAttendees = formData.get('maxAttendees');
+    const registrationDeadline = formData.get('registrationDeadline');
+    
     const danceData = {
       title: formData.get('title'),
       venue: formData.get('venue'),
@@ -775,6 +958,8 @@ function initPublishForm() {
       price: parseInt(formData.get('price')) || 0,
       description: formData.get('description'),
       organizer: formData.get('organizer'),
+      maxAttendees: maxAttendees ? parseInt(maxAttendees) : null,
+      registrationDeadline: registrationDeadline ? new Date(registrationDeadline).toISOString() : null,
       latitude: 31.2304,
       longitude: 121.4737
     };
@@ -829,6 +1014,33 @@ function populateInviteDanceSelect() {
     option.textContent = `${dance.title} (${dance.date})`;
     select.appendChild(option);
   });
+}
+
+function populatePartnerDanceSelect() {
+  const select = document.getElementById('partnerDance');
+  if (!select) return;
+  
+  const currentValue = select.value;
+  select.innerHTML = `
+    <option value="">全部舞会</option>
+    <option value="my-registered">我已报名的舞会</option>
+  `;
+  
+  const optgroup = document.createElement('optgroup');
+  optgroup.label = '所有舞会';
+  
+  allDances.forEach(dance => {
+    const option = document.createElement('option');
+    option.value = `dance-${dance.id}`;
+    option.textContent = `${dance.title} (${dance.date})`;
+    optgroup.appendChild(option);
+  });
+  
+  select.appendChild(optgroup);
+  
+  if (currentValue) {
+    select.value = currentValue;
+  }
 }
 
 function openInviteModal(userId) {

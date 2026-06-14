@@ -10,7 +10,7 @@ const reviewsRouter = require('./routes/reviews');
 const notificationsRouter = require('./routes/notifications');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 app.use(cors());
 app.use(bodyParser.json());
