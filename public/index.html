@@ -20,10 +20,27 @@
         <button class="nav-btn" data-view="publish">发布舞会</button>
         <button class="nav-btn" data-view="profile">个人中心</button>
       </nav>
-      <div class="user-info">
-        <select id="currentUserSelect">
-          <option value="">选择身份</option>
-        </select>
+      <div class="header-right">
+        <div class="notification-center">
+          <button class="notification-bell" id="notificationBell">
+            <span class="bell-icon">🔔</span>
+            <span class="notification-badge" id="notificationBadge" style="display:none;">0</span>
+          </button>
+          <div class="notification-dropdown" id="notificationDropdown">
+            <div class="notification-header">
+              <h3>通知</h3>
+              <button class="read-all-btn" id="readAllBtn">全部已读</button>
+            </div>
+            <div class="notification-list" id="notificationList">
+              <div class="notification-empty">暂无通知</div>
+            </div>
+          </div>
+        </div>
+        <div class="user-info">
+          <select id="currentUserSelect">
+            <option value="">选择身份</option>
+          </select>
+        </div>
       </div>
     </div>
   </header>

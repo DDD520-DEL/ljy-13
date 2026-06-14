@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../data/database');
 
-let { invitations, dances, users, getNextInvitationId, isFollowing, isMutualFollowing } = db;
+let { invitations, dances, users, getNextInvitationId, isFollowing, isMutualFollowing, addNotification } = db;
 
 router.get('/', (req, res) => {
   const { userId, danceId, status, currentUserId } = req.query;
@@ -157,6 +157,16 @@ router.put('/:id/accept', (req, res) => {
     dance.attendeeCount++;
   }
   
+  const toUser = users.find(u => u.id === invitation.toUserId);
+  const danceInfo = dance ? dance.title : '舞会';
+  addNotification(
+    invitation.fromUserId,
+    'invitation_accepted',
+    '邀约已被接受',
+    `${toUser ? toUser.name : '对方'} 接受了「${danceInfo}」的邀约`,
+    invitation.id
+  );
+  
   res.json(invitation);
 });
 
@@ -171,6 +181,18 @@ router.put('/:id/reject', (req, res) => {
   }
   
   invitation.status = 'rejected';
+  
+  const toUser = users.find(u => u.id === invitation.toUserId);
+  const dance = dances.find(d => d.id === invitation.danceId);
+  const danceInfo = dance ? dance.title : '舞会';
+  addNotification(
+    invitation.fromUserId,
+    'invitation_rejected',
+    '邀约已被拒绝',
+    `${toUser ? toUser.name : '对方'} 拒绝了「${danceInfo}」的邀约`,
+    invitation.id
+  );
+  
   res.json(invitation);
 });
 

@@ -235,11 +235,25 @@ let follows = [
   }
 ];
 
+let notifications = [
+  {
+    id: 1,
+    userId: 1,
+    type: "invitation_accepted",
+    title: "邀约已被接受",
+    content: "李婷婷 接受了你的舞会邀约",
+    relatedId: 2,
+    isRead: false,
+    createdAt: "2026-06-14T10:00:00Z"
+  }
+];
+
 let nextDanceId = 6;
 let nextUserId = 6;
 let nextInvitationId = 3;
 let nextReviewId = 4;
 let nextFollowId = 5;
+let nextNotificationId = 2;
 
 function isFollowing(followerId, followingId) {
   return follows.some(f => f.followerId === followerId && f.followingId === followingId);
@@ -280,12 +294,56 @@ function removeFollow(followerId, followingId) {
   return true;
 }
 
+function getNotifications(userId) {
+  return notifications
+    .filter(n => n.userId === userId)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+function getUnreadCount(userId) {
+  return notifications.filter(n => n.userId === userId && !n.isRead).length;
+}
+
+function addNotification(userId, type, title, content, relatedId) {
+  const notification = {
+    id: nextNotificationId++,
+    userId,
+    type,
+    title,
+    content,
+    relatedId: relatedId || null,
+    isRead: false,
+    createdAt: new Date().toISOString()
+  };
+  notifications.push(notification);
+  return notification;
+}
+
+function markAsRead(notificationId, userId) {
+  const notification = notifications.find(n => n.id === notificationId && n.userId === userId);
+  if (notification) {
+    notification.isRead = true;
+    return true;
+  }
+  return false;
+}
+
+function markAllAsRead(userId) {
+  notifications.forEach(n => {
+    if (n.userId === userId) {
+      n.isRead = true;
+    }
+  });
+  return true;
+}
+
 module.exports = {
   dances,
   users,
   invitations,
   reviews,
   follows,
+  notifications,
   getNextDanceId: () => nextDanceId++,
   getNextUserId: () => nextUserId++,
   getNextInvitationId: () => nextInvitationId++,
@@ -295,5 +353,10 @@ module.exports = {
   getFollowers,
   getFollowing,
   addFollow,
-  removeFollow
+  removeFollow,
+  getNotifications,
+  getUnreadCount,
+  addNotification,
+  markAsRead,
+  markAllAsRead
 };

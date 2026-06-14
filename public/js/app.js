@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initPublishForm();
   initModals();
   initReviewModal();
+  initNotifications();
   loadUsers();
   loadDances();
   loadHotRanking();
@@ -456,11 +457,13 @@ async function loadUsers() {
         currentUser = allUsers.find(u => u.id === parseInt(e.target.value));
         showToast(`已切换为 ${currentUser.name}`, 'success');
         loadPartners();
+        loadUnreadCount();
         if (document.getElementById('profile-view').classList.contains('active')) {
           loadUserProfile();
         }
       } else {
         currentUser = null;
+        loadUnreadCount();
         if (document.getElementById('profile-view').classList.contains('active')) {
           loadUserProfile();
         }
@@ -1360,4 +1363,184 @@ function showToast(message, type = 'success') {
   setTimeout(() => {
     toast.classList.remove('show');
   }, 3000);
+}
+
+function initNotifications() {
+  const bell = document.getElementById('notificationBell');
+  const dropdown = document.getElementById('notificationDropdown');
+  const readAllBtn = document.getElementById('readAllBtn');
+  
+  bell.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!currentUser) {
+      showToast('请先选择身份', 'error');
+      return;
+    }
+    dropdown.classList.toggle('active');
+    if (dropdown.classList.contains('active')) {
+      loadNotifications();
+    }
+  });
+  
+  document.addEventListener('click', (e) => {
+    if (!dropdown.contains(e.target) && !bell.contains(e.target)) {
+      dropdown.classList.remove('active');
+    }
+  });
+  
+  readAllBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    markAllNotificationsRead();
+  });
+}
+
+async function loadUnreadCount() {
+  if (!currentUser) {
+    const badge = document.getElementById('notificationBadge');
+    badge.style.display = 'none';
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/notifications/unread-count?userId=${currentUser.id}`);
+    const data = await res.json();
+    updateNotificationBadge(data.count);
+  } catch (e) {
+    console.error('加载未读通知数量失败:', e);
+  }
+}
+
+function updateNotificationBadge(count) {
+  const badge = document.getElementById('notificationBadge');
+  if (count > 0) {
+    badge.style.display = 'flex';
+    badge.textContent = count > 99 ? '99+' : count;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+async function loadNotifications() {
+  if (!currentUser) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/notifications?userId=${currentUser.id}&limit=20`);
+    const notifications = await res.json();
+    renderNotifications(notifications);
+  } catch (e) {
+    console.error('加载通知失败:', e);
+  }
+}
+
+function renderNotifications(notifications) {
+  const container = document.getElementById('notificationList');
+  
+  if (notifications.length === 0) {
+    container.innerHTML = '<div class="notification-empty">暂无通知</div>';
+    return;
+  }
+  
+  container.innerHTML = notifications.map(n => {
+    const iconClass = n.type === 'invitation_accepted' ? 'accepted' : 'rejected';
+    const icon = n.type === 'invitation_accepted' ? '✅' : '❌';
+    const unreadClass = !n.isRead ? 'unread' : '';
+    const timeStr = formatNotificationTime(n.createdAt);
+    
+    return `
+      <div class="notification-item ${unreadClass}" data-id="${n.id}">
+        <div class="notification-icon ${iconClass}">${icon}</div>
+        <div class="notification-content">
+          <div class="notification-title">${n.title}</div>
+          <div class="notification-text">${n.content}</div>
+          <div class="notification-time">${timeStr}</div>
+        </div>
+        ${!n.isRead ? `<button class="notification-mark-read" data-id="${n.id}" title="标记已读">✓</button>` : ''}
+      </div>
+    `;
+  }).join('');
+  
+  container.querySelectorAll('.notification-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      if (e.target.classList.contains('notification-mark-read')) return;
+      const id = parseInt(item.dataset.id);
+      handleNotificationClick(id);
+    });
+  });
+  
+  container.querySelectorAll('.notification-mark-read').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = parseInt(btn.dataset.id);
+      markNotificationRead(id);
+    });
+  });
+}
+
+function formatNotificationTime(createdAt) {
+  const now = new Date();
+  const date = new Date(createdAt);
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  
+  if (diffMins < 1) return '刚刚';
+  if (diffMins < 60) return `${diffMins}分钟前`;
+  if (diffHours < 24) return `${diffHours}小时前`;
+  if (diffDays < 7) return `${diffDays}天前`;
+  
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  return `${month}月${day}日`;
+}
+
+async function markNotificationRead(notificationId) {
+  if (!currentUser) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/notifications/${notificationId}/read`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id })
+    });
+    
+    if (res.ok) {
+      loadNotifications();
+      loadUnreadCount();
+    }
+  } catch (e) {
+    console.error('标记已读失败:', e);
+  }
+}
+
+async function markAllNotificationsRead() {
+  if (!currentUser) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/notifications/read-all`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id })
+    });
+    
+    if (res.ok) {
+      loadNotifications();
+      loadUnreadCount();
+      showToast('已全部标记为已读', 'success');
+    }
+  } catch (e) {
+    console.error('全部已读失败:', e);
+  }
+}
+
+function handleNotificationClick(notificationId) {
+  markNotificationRead(notificationId);
+}
+
+function refreshNotifications() {
+  loadUnreadCount();
+  const dropdown = document.getElementById('notificationDropdown');
+  if (dropdown.classList.contains('active')) {
+    loadNotifications();
+  }
 }

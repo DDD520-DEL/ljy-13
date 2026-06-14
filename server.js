@@ -7,6 +7,7 @@ const dancesRouter = require('./routes/dances');
 const usersRouter = require('./routes/users');
 const invitationsRouter = require('./routes/invitations');
 const reviewsRouter = require('./routes/reviews');
+const notificationsRouter = require('./routes/notifications');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -21,6 +22,7 @@ app.use('/api/dances', dancesRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/invitations', invitationsRouter);
 app.use('/api/reviews', reviewsRouter);
+app.use('/api/notifications', notificationsRouter);
 
 app.get('/api', (req, res) => {
   res.json({
