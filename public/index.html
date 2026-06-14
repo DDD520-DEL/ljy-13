@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>莎莎舞舞会平台 - Salsa Dance Platform</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <div class="logo">
+        <span class="logo-icon">💃</span>
+        <h1>莎莎舞平台</h1>
+      </div>
+      <nav class="nav">
+        <button class="nav-btn active" data-view="calendar">舞会日历</button>
+        <button class="nav-btn" data-view="map">附近地图</button>
+        <button class="nav-btn" data-view="partners">舞伴匹配</button>
+        <button class="nav-btn" data-view="publish">发布舞会</button>
+      </nav>
+      <div class="user-info">
+        <select id="currentUserSelect">
+          <option value="">选择身份</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="container">
+      <section id="calendar-view" class="view active">
+        <div class="view-header">
+          <h2>🎭 舞会日历</h2>
+          <div class="filters">
+            <select id="styleFilter">
+              <option value="">全部舞种</option>
+              <option value="Cuban">Cuban 风格</option>
+              <option value="LA">LA 风格</option>
+              <option value="NY">NY 风格</option>
+              <option value="Bachata">Bachata</option>
+            </select>
+            <select id="sortSelect">
+              <option value="date">按日期排序</option>
+              <option value="hot">按热度排序</option>
+              <option value="price">按价格排序</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="calendar-nav">
+          <button id="prevMonth" class="cal-btn">← 上月</button>
+          <h3 id="currentMonth"></h3>
+          <button id="nextMonth" class="cal-btn">下月 →</button>
+        </div>
+
+        <div class="calendar-grid">
+          <div class="calendar-header">
+            <div>周日</div>
+            <div>周一</div>
+            <div>周二</div>
+            <div>周三</div>
+            <div>周四</div>
+            <div>周五</div>
+            <div>周六</div>
+          </div>
+          <div id="calendarDays" class="calendar-days"></div>
+        </div>
+
+        <div class="dance-list">
+          <h3>舞会列表</h3>
+          <div id="danceListContainer" class="dance-cards"></div>
+        </div>
+      </section>
+
+      <section id="map-view" class="view">
+        <div class="view-header">
+          <h2>📍 附近舞会地图</h2>
+          <div class="map-controls">
+            <button id="refreshLocation" class="btn btn-secondary">定位当前位置</button>
+          </div>
+        </div>
+        <div class="map-container">
+          <div id="map" class="map">
+            <div class="map-placeholder">
+              <div class="map-marker demo-marker-1" data-id="1" title="热情拉丁舞厅">
+                <span class="marker-icon">💃</span>
+                <span class="marker-label">周五莎莎之夜</span>
+              </div>
+              <div class="map-marker demo-marker-2" data-id="2" title="城市舞蹈中心">
+                <span class="marker-icon">🎭</span>
+                <span class="marker-label">NY风格工作坊</span>
+              </div>
+              <div class="map-marker demo-marker-3" data-id="3" title="阳光艺术空间">
+                <span class="marker-icon">☀️</span>
+                <span class="marker-label">周日下午社交舞</span>
+              </div>
+              <div class="map-marker demo-marker-4" data-id="4" title="星空舞蹈俱乐部">
+                <span class="marker-icon">⭐</span>
+                <span class="marker-label">LA风格进阶班</span>
+              </div>
+              <div class="map-marker demo-marker-5" data-id="5" title="棕榈树酒吧">
+                <span class="marker-icon">🌴</span>
+                <span class="marker-label">月度主题派对</span>
+              </div>
+              <div class="map-center-marker">
+                <span>📍</span>
+                <span class="map-center-label">我的位置</span>
+              </div>
+            </div>
+          </div>
+          <div id="mapSidebar" class="map-sidebar">
+            <h3>附近舞会</h3>
+            <div id="nearbyDancesList" class="nearby-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="partners-view" class="view">
+        <div class="view-header">
+          <h2>🤝 舞伴匹配</h2>
+          <div class="filters">
+            <select id="partnerStyle">
+              <option value="">全部舞种</option>
+              <option value="Cuban">Cuban 风格</option>
+              <option value="LA">LA 风格</option>
+              <option value="NY">NY 风格</option>
+            </select>
+            <select id="partnerRole">
+              <option value="">任意角色</option>
+              <option value="leader">引带 (Leader)</option>
+              <option value="follower">跟随 (Follower)</option>
+              <option value="both">双修 (Both)</option>
+            </select>
+            <select id="partnerLevel">
+              <option value="">任意水平</option>
+              <option value="beginner">入门</option>
+              <option value="intermediate">中级</option>
+              <option value="advanced">高级</option>
+            </select>
+            <button id="matchBtn" class="btn btn-primary">智能匹配</button>
+          </div>
+        </div>
+
+        <div class="partners-container">
+          <div class="hot-ranking">
+            <h3>🔥 舞会热度排行</h3>
+            <ol id="hotRankingList"></ol>
+          </div>
+          <div class="partners-list">
+            <h3>推荐舞伴</h3>
+            <div id="partnersList" class="partner-cards"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="publish-view" class="view">
+        <div class="view-header">
+          <h2>📢 发布舞会</h2>
+        </div>
+        <form id="publishForm" class="publish-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label>舞会标题 *</label>
+              <input type="text" name="title" required placeholder="例如：周五莎莎之夜">
+            </div>
+            <div class="form-group">
+              <label>场地名称 *</label>
+              <input type="text" name="venue" required placeholder="例如：热情拉丁舞厅">
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label>详细地址 *</label>
+            <input type="text" name="address" required placeholder="例如：上海市黄浦区南京东路100号">
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>日期 *</label>
+              <input type="date" name="date" required>
+            </div>
+            <div class="form-group">
+              <label>开始时间 *</label>
+              <input type="time" name="startTime" required>
+            </div>
+            <div class="form-group">
+              <label>结束时间 *</label>
+              <input type="time" name="endTime" required>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label>舞种风格 * (可多选)</label>
+            <div class="checkbox-group">
+              <label><input type="checkbox" name="styles" value="Cuban"> Cuban 风格</label>
+              <label><input type="checkbox" name="styles" value="LA"> LA 风格</label>
+              <label><input type="checkbox" name="styles" value="NY"> NY 风格</label>
+              <label><input type="checkbox" name="styles" value="Bachata"> Bachata</label>
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>票价 (元)</label>
+              <input type="number" name="price" min="0" placeholder="0">
+            </div>
+            <div class="form-group">
+              <label>主办方</label>
+              <input type="text" name="organizer" placeholder="例如：热情舞蹈工作室">
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label>舞会描述</label>
+            <textarea name="description" rows="4" placeholder="简单介绍一下舞会的特色..."></textarea>
+          </div>
+          
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-lg">发布舞会</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </main>
+
+  <div id="danceModal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal">&times;</span>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <div id="inviteModal" class="modal">
+    <div class="modal-content">
+      <span class="close-invite-modal">&times;</span>
+      <h3>发起舞伴邀约</h3>
+      <form id="inviteForm">
+        <div class="form-group">
+          <label>选择舞会</label>
+          <select id="inviteDanceSelect" name="danceId" required></select>
+        </div>
+        <div class="form-group">
+          <label>邀约留言</label>
+          <textarea name="message" rows="3" placeholder="写一句邀约的话吧..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">发送邀约</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
