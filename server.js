@@ -8,6 +8,7 @@ const usersRouter = require('./routes/users');
 const invitationsRouter = require('./routes/invitations');
 const reviewsRouter = require('./routes/reviews');
 const notificationsRouter = require('./routes/notifications');
+const commentsRouter = require('./routes/comments');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -23,6 +24,7 @@ app.use('/api/users', usersRouter);
 app.use('/api/invitations', invitationsRouter);
 app.use('/api/reviews', reviewsRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/comments', commentsRouter);
 
 app.get('/api', (req, res) => {
   res.json({

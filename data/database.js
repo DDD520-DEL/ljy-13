@@ -268,6 +268,59 @@ let danceRegistrations = [
   { id: 7, danceId: 5, userId: 4, createdAt: "2026-06-09T10:00:00Z" }
 ];
 
+let comments = [
+  {
+    id: 1,
+    danceId: 1,
+    userId: 2,
+    parentId: null,
+    replyToUserId: null,
+    content: "这个舞会太棒了！现场氛围超级好，下次一定还来！",
+    likeCount: 5,
+    createdAt: "2026-06-16T09:30:00Z"
+  },
+  {
+    id: 2,
+    danceId: 1,
+    userId: 3,
+    parentId: null,
+    replyToUserId: null,
+    content: "DJ选曲很专业，就是空调有点冷，建议大家带件外套。",
+    likeCount: 3,
+    createdAt: "2026-06-16T10:15:00Z"
+  },
+  {
+    id: 3,
+    danceId: 1,
+    userId: 1,
+    parentId: 2,
+    replyToUserId: 3,
+    content: "哈哈同感，我也觉得有点冷，不过跳舞跳热了就好了~",
+    likeCount: 2,
+    createdAt: "2026-06-16T10:45:00Z"
+  },
+  {
+    id: 4,
+    danceId: 1,
+    userId: 4,
+    parentId: null,
+    replyToUserId: null,
+    content: "有没有新手一起呀？我刚学Cuban，不太敢下场...",
+    likeCount: 1,
+    createdAt: "2026-06-16T11:00:00Z"
+  },
+  {
+    id: 5,
+    danceId: 2,
+    userId: 1,
+    parentId: null,
+    replyToUserId: null,
+    content: "工作坊老师教得很好，收获满满！推荐给想进阶的朋友。",
+    likeCount: 4,
+    createdAt: "2026-06-17T09:30:00Z"
+  }
+];
+
 let nextDanceId = 6;
 let nextUserId = 6;
 let nextInvitationId = 3;
@@ -275,6 +328,7 @@ let nextReviewId = 4;
 let nextFollowId = 5;
 let nextNotificationId = 2;
 let nextRegistrationId = 8;
+let nextCommentId = 6;
 
 function isFollowing(followerId, followingId) {
   return follows.some(f => f.followerId === followerId && f.followingId === followingId);
@@ -452,6 +506,62 @@ function getStyleWeightMap(styles) {
   return map;
 }
 
+function getCommentsByDanceId(danceId) {
+  return comments.filter(c => c.danceId === parseInt(danceId));
+}
+
+function getCommentById(commentId) {
+  return comments.find(c => c.id === parseInt(commentId));
+}
+
+function addComment(commentData) {
+  const newComment = {
+    id: nextCommentId++,
+    danceId: parseInt(commentData.danceId),
+    userId: parseInt(commentData.userId),
+    parentId: commentData.parentId ? parseInt(commentData.parentId) : null,
+    replyToUserId: commentData.replyToUserId ? parseInt(commentData.replyToUserId) : null,
+    content: commentData.content,
+    likeCount: 0,
+    createdAt: new Date().toISOString()
+  };
+  comments.push(newComment);
+  return newComment;
+}
+
+function deleteComment(commentId) {
+  const index = comments.findIndex(c => c.id === parseInt(commentId));
+  if (index === -1) return false;
+  
+  const commentIdsToDelete = [parseInt(commentId)];
+  const stack = [parseInt(commentId)];
+  while (stack.length > 0) {
+    const currentId = stack.pop();
+    comments
+      .filter(c => c.parentId === currentId)
+      .forEach(c => {
+        commentIdsToDelete.push(c.id);
+        stack.push(c.id);
+      });
+  }
+  
+  commentIdsToDelete.forEach(id => {
+    const idx = comments.findIndex(c => c.id === id);
+    if (idx !== -1) comments.splice(idx, 1);
+  });
+  
+  return true;
+}
+
+function likeComment(commentId) {
+  const comment = getCommentById(commentId);
+  if (comment) {
+    comment.likeCount++;
+    return comment;
+  }
+  return null;
+}
+
 module.exports = {
   dances,
   users,
@@ -460,6 +570,7 @@ module.exports = {
   follows,
   notifications,
   danceRegistrations,
+  comments,
   getNextDanceId: () => nextDanceId++,
   getNextUserId: () => nextUserId++,
   getNextInvitationId: () => nextInvitationId++,
@@ -486,5 +597,10 @@ module.exports = {
   isRegistrationClosed,
   normalizeStyles,
   getStyleNames,
-  getStyleWeightMap
+  getStyleWeightMap,
+  getCommentsByDanceId,
+  getCommentById,
+  addComment,
+  deleteComment,
+  likeComment
 };

@@ -331,21 +331,26 @@ function createDanceCard(dance) {
 
 async function showDanceDetail(id) {
   try {
+    currentDanceId = id;
+    currentCommentSort = 'time';
+    
     const url = currentUser 
       ? `${API_BASE}/dances/${id}?userId=${currentUser.id}`
       : `${API_BASE}/dances/${id}`;
     const danceRes = await fetch(url);
     const dance = await danceRes.json();
     
-    const [avgRes, reviewsRes, registeredUsersRes] = await Promise.all([
+    const [avgRes, reviewsRes, registeredUsersRes, commentsRes] = await Promise.all([
       fetch(`${API_BASE}/reviews/dance/${id}/average`),
       fetch(`${API_BASE}/reviews?danceId=${id}`),
-      fetch(`${API_BASE}/dances/${id}/registered-users`)
+      fetch(`${API_BASE}/dances/${id}/registered-users`),
+      loadDanceComments(id, currentCommentSort)
     ]);
     
     const averages = await avgRes.json();
     const reviews = await reviewsRes.json();
     const registeredUsers = await registeredUsersRes.json();
+    const commentData = commentsRes;
     
     const userReview = currentUser 
       ? reviews.find(r => r.userId === currentUser.id) 
@@ -504,6 +509,8 @@ async function showDanceDetail(id) {
       `;
     }
     
+    const commentsSectionHtml = renderCommentsSection(dance.id, commentData);
+    
     document.getElementById('modalBody').innerHTML = `
       <div class="modal-dance-header">
         <h2>${dance.title}</h2>
@@ -525,6 +532,7 @@ async function showDanceDetail(id) {
       ${registeredUsersHtml}
       ${ratingsHtml}
       ${reviewsHtml}
+      ${commentsSectionHtml}
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
         ${reviewButtonHtml}
@@ -534,6 +542,7 @@ async function showDanceDetail(id) {
     `;
     
     document.getElementById('danceModal').classList.add('active');
+    bindCommentEvents(dance.id);
   } catch (e) {
     console.error('加载舞会详情失败:', e);
     showToast('加载失败', 'error');
@@ -2027,5 +2036,376 @@ async function saveProfile(e) {
   } catch (e) {
     console.error('更新资料失败:', e);
     showToast('更新失败', 'error');
+  }
+}
+
+let currentDanceId = null;
+let currentCommentSort = 'time';
+
+async function loadDanceComments(danceId, sort = 'time') {
+  try {
+    const res = await fetch(`${API_BASE}/comments/dance/${danceId}?sort=${sort}`);
+    return await res.json();
+  } catch (e) {
+    console.error('加载评论失败:', e);
+    return { comments: [], totalCount: 0 };
+  }
+}
+
+function renderCommentsSection(danceId, commentData) {
+  const { comments, totalCount } = commentData;
+  
+  let commentFormHtml = '';
+  if (currentUser) {
+    commentFormHtml = `
+      <div class="comment-form" id="mainCommentForm">
+        <div class="comment-form-header">
+          <img src="${currentUser.avatar}" alt="${currentUser.name}" class="comment-form-avatar">
+          <span class="comment-form-name">${currentUser.name}</span>
+        </div>
+        <textarea id="mainCommentTextarea" placeholder="分享你的想法..." maxlength="500"></textarea>
+        <div class="comment-form-footer">
+          <span class="comment-form-char-count"><span id="mainCommentCharCount">0</span>/500</span>
+          <button class="comment-submit-btn" id="mainCommentSubmitBtn" disabled>发表评论</button>
+        </div>
+      </div>
+    `;
+  } else {
+    commentFormHtml = `<div class="login-hint">💡 请先在右上角选择身份后发表评论</div>`;
+  }
+  
+  let commentsListHtml = '';
+  if (comments.length === 0) {
+    commentsListHtml = `
+      <div class="no-comments">
+        <div class="no-comments-icon">💬</div>
+        <p>暂无评论，快来发表第一条评论吧！</p>
+      </div>
+    `;
+  } else {
+    commentsListHtml = `<div class="comments-list">${comments.map(c => renderCommentItem(c, danceId)).join('')}</div>`;
+  }
+  
+  return `
+    <div class="comments-section" id="commentsSection">
+      <div class="comments-section-header">
+        <h4>💬 评论互动 (${totalCount})</h4>
+        <select class="comment-sort-select" id="commentSortSelect">
+          <option value="time" ${currentCommentSort === 'time' ? 'selected' : ''}>按时间排序</option>
+          <option value="hot" ${currentCommentSort === 'hot' ? 'selected' : ''}>按热度排序</option>
+        </select>
+      </div>
+      ${commentFormHtml}
+      ${commentsListHtml}
+    </div>
+  `;
+}
+
+function renderCommentItem(comment, danceId) {
+  const isOwner = currentUser && currentUser.id === comment.userId;
+  const replyToHtml = comment.replyToUser 
+    ? `<span class="comment-reply-to">@${comment.replyToUser.name}</span>`
+    : '';
+  
+  let deleteBtn = '';
+  if (isOwner) {
+    deleteBtn = `<button class="comment-action-btn delete-btn" data-comment-id="${comment.id}" title="删除">🗑 删除</button>`;
+  }
+  
+  let replyBtn = '';
+  if (currentUser) {
+    replyBtn = `<button class="comment-action-btn reply-btn" data-comment-id="${comment.id}" data-user-id="${comment.userId}" data-user-name="${comment.user.name}">💬 回复</button>`;
+  }
+  
+  const repliesHtml = comment.replies && comment.replies.length > 0
+    ? `<div class="replies-list">${comment.replies.map(reply => renderReplyItem(reply, danceId, comment.id)).join('')}</div>`
+    : '';
+  
+  return `
+    <div class="comment-item" data-comment-id="${comment.id}">
+      <div class="comment-header">
+        <img src="${comment.user.avatar}" alt="${comment.user.name}" class="comment-avatar">
+        <div class="comment-user-info">
+          <div class="comment-user-name">${comment.user.name}</div>
+          <div class="comment-meta">${formatNotificationTime(comment.createdAt)}</div>
+        </div>
+      </div>
+      <div class="comment-content">${replyToHtml}${escapeHtml(comment.content)}</div>
+      <div class="comment-actions">
+        <button class="comment-action-btn like-btn" data-comment-id="${comment.id}">
+          ❤️ <span class="comment-like-count">${comment.likeCount}</span>
+        </button>
+        ${replyBtn}
+        ${deleteBtn}
+      </div>
+      ${repliesHtml}
+      <div class="reply-form-container" id="replyFormContainer-${comment.id}"></div>
+    </div>
+  `;
+}
+
+function renderReplyItem(reply, danceId, parentCommentId) {
+  const isOwner = currentUser && currentUser.id === reply.userId;
+  const replyToHtml = reply.replyToUser 
+    ? `<span class="comment-reply-to">@${reply.replyToUser.name}</span>`
+    : '';
+  
+  let deleteBtn = '';
+  if (isOwner) {
+    deleteBtn = `<button class="comment-action-btn delete-btn" data-comment-id="${reply.id}" title="删除">🗑 删除</button>`;
+  }
+  
+  let replyBtn = '';
+  if (currentUser) {
+    replyBtn = `<button class="comment-action-btn reply-btn" data-comment-id="${parentCommentId}" data-user-id="${reply.userId}" data-user-name="${reply.user.name}">💬 回复</button>`;
+  }
+  
+  return `
+    <div class="reply-item" data-comment-id="${reply.id}">
+      <div class="comment-header">
+        <img src="${reply.user.avatar}" alt="${reply.user.name}" class="comment-avatar">
+        <div class="comment-user-info">
+          <div class="comment-user-name">${reply.user.name}</div>
+          <div class="comment-meta">${formatNotificationTime(reply.createdAt)}</div>
+        </div>
+      </div>
+      <div class="comment-content">${replyToHtml}${escapeHtml(reply.content)}</div>
+      <div class="comment-actions">
+        <button class="comment-action-btn like-btn" data-comment-id="${reply.id}">
+          ❤️ <span class="comment-like-count">${reply.likeCount}</span>
+        </button>
+        ${replyBtn}
+        ${deleteBtn}
+      </div>
+    </div>
+  `;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function bindCommentEvents(danceId) {
+  const sortSelect = document.getElementById('commentSortSelect');
+  if (sortSelect) {
+    sortSelect.addEventListener('change', async (e) => {
+      currentCommentSort = e.target.value;
+      await refreshComments(danceId);
+    });
+  }
+  
+  const textarea = document.getElementById('mainCommentTextarea');
+  const submitBtn = document.getElementById('mainCommentSubmitBtn');
+  const charCount = document.getElementById('mainCommentCharCount');
+  
+  if (textarea && submitBtn) {
+    textarea.addEventListener('input', () => {
+      const length = textarea.value.trim().length;
+      charCount.textContent = length;
+      submitBtn.disabled = length === 0 || length > 500;
+    });
+    
+    submitBtn.addEventListener('click', async () => {
+      await submitMainComment(danceId);
+    });
+  }
+  
+  document.querySelectorAll('.comment-action-btn.reply-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const commentId = parseInt(btn.dataset.commentId);
+      const replyToUserId = parseInt(btn.dataset.userId);
+      const replyToUserName = btn.dataset.userName;
+      toggleReplyForm(commentId, replyToUserId, replyToUserName, danceId);
+    });
+  });
+  
+  document.querySelectorAll('.comment-action-btn.delete-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const commentId = parseInt(btn.dataset.commentId);
+      await deleteComment(commentId, danceId);
+    });
+  });
+  
+  document.querySelectorAll('.comment-action-btn.like-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const commentId = parseInt(btn.dataset.commentId);
+      await likeComment(commentId, btn);
+    });
+  });
+}
+
+function toggleReplyForm(commentId, replyToUserId, replyToUserName, danceId) {
+  const containerId = `replyFormContainer-${commentId}`;
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  
+  if (container.innerHTML) {
+    container.innerHTML = '';
+    return;
+  }
+  
+  container.innerHTML = `
+    <div class="reply-form">
+      <textarea id="replyTextarea-${commentId}" placeholder="回复 @${replyToUserName}..." maxlength="500"></textarea>
+      <div class="reply-form-footer">
+        <button class="reply-cancel-btn" data-comment-id="${commentId}">取消</button>
+        <button class="reply-submit-btn" data-comment-id="${commentId}" data-reply-to-user-id="${replyToUserId}" disabled>回复</button>
+      </div>
+    </div>
+  `;
+  
+  const textarea = document.getElementById(`replyTextarea-${commentId}`);
+  const submitBtn = container.querySelector('.reply-submit-btn');
+  
+  textarea.addEventListener('input', () => {
+    submitBtn.disabled = textarea.value.trim().length === 0;
+  });
+  
+  container.querySelector('.reply-cancel-btn').addEventListener('click', () => {
+    container.innerHTML = '';
+  });
+  
+  submitBtn.addEventListener('click', async () => {
+    await submitReply(danceId, commentId, replyToUserId, textarea.value.trim());
+  });
+  
+  textarea.focus();
+}
+
+async function submitMainComment(danceId) {
+  if (!currentUser) {
+    showToast('请先选择身份', 'error');
+    return;
+  }
+  
+  const textarea = document.getElementById('mainCommentTextarea');
+  const content = textarea.value.trim();
+  
+  if (!content) {
+    showToast('评论内容不能为空', 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        danceId,
+        userId: currentUser.id,
+        content
+      })
+    });
+    
+    if (res.ok) {
+      showToast('评论发表成功！', 'success');
+      await refreshComments(danceId);
+    } else {
+      const data = await res.json();
+      showToast(data.error || '发表失败', 'error');
+    }
+  } catch (e) {
+    console.error('发表评论失败:', e);
+    showToast('发表失败', 'error');
+  }
+}
+
+async function submitReply(danceId, parentCommentId, replyToUserId, content) {
+  if (!currentUser) {
+    showToast('请先选择身份', 'error');
+    return;
+  }
+  
+  if (!content) {
+    showToast('回复内容不能为空', 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        danceId,
+        userId: currentUser.id,
+        content,
+        parentId: parentCommentId,
+        replyToUserId
+      })
+    });
+    
+    if (res.ok) {
+      showToast('回复成功！', 'success');
+      await refreshComments(danceId);
+    } else {
+      const data = await res.json();
+      showToast(data.error || '回复失败', 'error');
+    }
+  } catch (e) {
+    console.error('回复失败:', e);
+    showToast('回复失败', 'error');
+  }
+}
+
+async function deleteComment(commentId, danceId) {
+  if (!currentUser) {
+    showToast('请先选择身份', 'error');
+    return;
+  }
+  
+  if (!confirm('确定要删除这条评论吗？')) {
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/comments/${commentId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id })
+    });
+    
+    if (res.ok) {
+      showToast('删除成功', 'success');
+      await refreshComments(danceId);
+    } else {
+      const data = await res.json();
+      showToast(data.error || '删除失败', 'error');
+    }
+  } catch (e) {
+    console.error('删除评论失败:', e);
+    showToast('删除失败', 'error');
+  }
+}
+
+async function likeComment(commentId, btn) {
+  try {
+    const res = await fetch(`${API_BASE}/comments/${commentId}/like`, {
+      method: 'POST'
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      const likeCountSpan = btn.querySelector('.comment-like-count');
+      if (likeCountSpan) {
+        likeCountSpan.textContent = data.likeCount;
+      }
+      btn.classList.add('liked');
+    }
+  } catch (e) {
+    console.error('点赞失败:', e);
+  }
+}
+
+async function refreshComments(danceId) {
+  const commentData = await loadDanceComments(danceId, currentCommentSort);
+  const commentsSection = document.getElementById('commentsSection');
+  if (commentsSection) {
+    commentsSection.outerHTML = renderCommentsSection(danceId, commentData);
+    bindCommentEvents(danceId);
   }
 }
