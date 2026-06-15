@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../data/database');
 
 let { 
+  SUPPORTED_CITIES,
   users, 
   getNextUserId, 
   isFollowing, 
@@ -73,8 +74,12 @@ router.get('/:id', (req, res) => {
 router.post('/', (req, res) => {
   const { name, danceYears, role, styles, level, bio, city } = req.body;
   
-  if (!name || !role || !styles || !styles.length) {
+  if (!name || !role || !styles || !styles.length || !city) {
     return res.status(400).json({ error: '请填写必要信息' });
+  }
+  
+  if (!SUPPORTED_CITIES.includes(city)) {
+    return res.status(400).json({ error: '不支持的城市' });
   }
   
   const normalizedStyles = normalizeStyles(styles);
@@ -88,7 +93,7 @@ router.post('/', (req, res) => {
     styles: normalizedStyles,
     level: level || 'beginner',
     bio: bio || '',
-    city: city || '上海',
+    city,
     createdAt: new Date().toISOString()
   };
   
@@ -112,7 +117,12 @@ router.put('/:id', (req, res) => {
   if (role !== undefined) user.role = role;
   if (level !== undefined) user.level = level;
   if (bio !== undefined) user.bio = bio;
-  if (city !== undefined) user.city = city;
+  if (city !== undefined) {
+    if (!SUPPORTED_CITIES.includes(city)) {
+      return res.status(400).json({ error: '不支持的城市' });
+    }
+    user.city = city;
+  }
   if (styles !== undefined) user.styles = normalizeStyles(styles);
   
   res.json(user);

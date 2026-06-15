@@ -2,12 +2,20 @@ const express = require('express');
 const router = express.Router();
 const db = require('../data/database');
 
-let { dances, getNextDanceId, isRegistered, addRegistration, removeRegistration, getRegisteredUsers, isRegistrationFull, isRegistrationClosed, getUserRegisteredDances, addNotification } = db;
+let { SUPPORTED_CITIES, dances, getNextDanceId, isRegistered, addRegistration, removeRegistration, getRegisteredUsers, isRegistrationFull, isRegistrationClosed, getUserRegisteredDances, addNotification } = db;
+
+router.get('/cities', (req, res) => {
+  res.json(SUPPORTED_CITIES);
+});
 
 router.get('/', (req, res) => {
-  const { style, date, sort, page = 1, limit = 10 } = req.query;
+  const { style, date, sort, city, page = 1, limit = 10 } = req.query;
   
   let filtered = [...dances];
+  
+  if (city) {
+    filtered = filtered.filter(d => d.city === city);
+  }
   
   if (style) {
     filtered = filtered.filter(d => d.styles.includes(style));
@@ -37,8 +45,12 @@ router.get('/', (req, res) => {
 });
 
 router.get('/hot', (req, res) => {
-  const { limit = 5 } = req.query;
-  const sorted = [...dances].sort((a, b) => 
+  const { limit = 5, city } = req.query;
+  let sorted = [...dances];
+  if (city) {
+    sorted = sorted.filter(d => d.city === city);
+  }
+  sorted = sorted.sort((a, b) => 
     (b.viewCount + b.attendeeCount * 2) - (a.viewCount + a.attendeeCount * 2)
   );
   res.json(sorted.slice(0, parseInt(limit)));
@@ -63,10 +75,14 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { title, venue, address, date, startTime, endTime, styles, price, description, organizer, latitude, longitude, maxAttendees, registrationDeadline } = req.body;
+  const { title, venue, address, city, date, startTime, endTime, styles, price, description, organizer, latitude, longitude, maxAttendees, registrationDeadline } = req.body;
   
-  if (!title || !venue || !address || !date || !startTime || !endTime || !styles || !styles.length) {
+  if (!title || !venue || !address || !city || !date || !startTime || !endTime || !styles || !styles.length) {
     return res.status(400).json({ error: '请填写必要信息' });
+  }
+  
+  if (!SUPPORTED_CITIES.includes(city)) {
+    return res.status(400).json({ error: '不支持的城市' });
   }
   
   const newDance = {
@@ -74,6 +90,7 @@ router.post('/', (req, res) => {
     title,
     venue,
     address,
+    city,
     date,
     startTime,
     endTime,
@@ -98,6 +115,10 @@ router.put('/:id', (req, res) => {
   const index = dances.findIndex(d => d.id === parseInt(req.params.id));
   if (index === -1) {
     return res.status(404).json({ error: '舞会不存在' });
+  }
+  
+  if (req.body.city && !SUPPORTED_CITIES.includes(req.body.city)) {
+    return res.status(400).json({ error: '不支持的城市' });
   }
   
   dances[index] = { ...dances[index], ...req.body, id: dances[index].id };

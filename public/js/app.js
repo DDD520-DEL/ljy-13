@@ -5,6 +5,8 @@ const ALL_DANCE_STYLES = ['Cuban', 'LA', 'NY', 'Bachata'];
 let currentDate = new Date();
 let selectedDate = null;
 let currentUser = null;
+let currentCity = null;
+let supportedCities = [];
 let allDances = [];
 let allUsers = [];
 let inviteTargetUserId = null;
@@ -40,7 +42,7 @@ function renderStyleTagsWithWeights(styles) {
   ).join('');
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   initNavigation();
   initCalendar();
   initFilters();
@@ -50,11 +52,66 @@ document.addEventListener('DOMContentLoaded', () => {
   initReviewModal();
   initNotifications();
   initEditProfileModal();
+  await initCities();
   loadUsers();
   loadDances();
   loadHotRanking();
   loadPartners();
 });
+
+async function initCities() {
+  try {
+    const res = await fetch(`${API_BASE}/dances/cities`);
+    supportedCities = await res.json();
+    populateCitySelects();
+    const citySelect = document.getElementById('citySelect');
+    currentCity = citySelect.value;
+    citySelect.addEventListener('change', onCityChanged);
+  } catch (e) {
+    console.error('加载城市列表失败:', e);
+  }
+}
+
+function populateCitySelects() {
+  const citySelect = document.getElementById('citySelect');
+  const publishCitySelect = document.getElementById('publishCitySelect');
+  const editCitySelect = document.getElementById('editCity');
+  
+  [citySelect, publishCitySelect, editCitySelect].forEach(select => {
+    if (!select) return;
+    const currentVal = select.value;
+    select.innerHTML = '';
+    supportedCities.forEach(city => {
+      const option = document.createElement('option');
+      option.value = city;
+      option.textContent = city;
+      select.appendChild(option);
+    });
+    if (currentVal && supportedCities.includes(currentVal)) {
+      select.value = currentVal;
+    } else if (currentCity && supportedCities.includes(currentCity)) {
+      select.value = currentCity;
+    } else if (select === citySelect) {
+      if (currentUser && supportedCities.includes(currentUser.city)) {
+        select.value = currentUser.city;
+      }
+    }
+  });
+}
+
+async function onCityChanged(e) {
+  currentCity = e.target.value;
+  showToast(`已切换到 ${currentCity}`, 'success');
+  await loadDances();
+  loadHotRanking();
+  renderMapMarkers();
+  if (document.getElementById('map-view').classList.contains('active')) {
+    loadNearbyDances();
+  }
+  loadPartners();
+  const publishCitySelect = document.getElementById('publishCitySelect');
+  if (publishCitySelect) publishCitySelect.value = currentCity;
+}
 
 function initNavigation() {
   const navBtns = document.querySelectorAll('.nav-btn');
@@ -219,7 +276,9 @@ function initFilters() {
 
 async function loadDances() {
   try {
-    const res = await fetch(`${API_BASE}/dances?sort=date`);
+    const params = new URLSearchParams({ sort: 'date', limit: 100 });
+    if (currentCity) params.set('city', currentCity);
+    const res = await fetch(`${API_BASE}/dances?${params.toString()}`);
     const data = await res.json();
     allDances = data.data;
     renderCalendar();
@@ -311,7 +370,7 @@ function createDanceCard(dance) {
       <div class="dance-card-body">
         <div class="dance-card-meta">
           <div>📍 ${dance.venue}</div>
-          <div>🏢 ${dance.address}</div>
+          <div>�️ ${dance.city} · � ${dance.address}</div>
         </div>
         <div class="dance-styles">${styleTags}</div>
       </div>
@@ -518,6 +577,7 @@ async function showDanceDetail(id) {
       </div>
       <div class="modal-dance-info">
         <div><span class="info-label">场地:</span> ${dance.venue}</div>
+        <div><span class="info-label">城市:</span> ${dance.city}</div>
         <div><span class="info-label">地址:</span> ${dance.address}</div>
         <div><span class="info-label">主办方:</span> ${dance.organizer}</div>
         <div><span class="info-label">票价:</span> ¥${dance.price}</div>
@@ -650,6 +710,22 @@ async function loadUsers() {
       if (e.target.value) {
         currentUser = allUsers.find(u => u.id === parseInt(e.target.value));
         showToast(`已切换为 ${currentUser.name}`, 'success');
+        if (currentUser.city && supportedCities.includes(currentUser.city)) {
+          const citySelect = document.getElementById('citySelect');
+          if (citySelect && citySelect.value !== currentUser.city) {
+            citySelect.value = currentUser.city;
+            currentCity = currentUser.city;
+            loadDances().then(() => {
+              loadHotRanking();
+              renderMapMarkers();
+              if (document.getElementById('map-view').classList.contains('active')) {
+                loadNearbyDances();
+              }
+            });
+            const publishCitySelect = document.getElementById('publishCitySelect');
+            if (publishCitySelect) publishCitySelect.value = currentCity;
+          }
+        }
         populatePartnerDanceSelect();
         loadPartners();
         loadUnreadCount();
@@ -659,6 +735,7 @@ async function loadUsers() {
       } else {
         currentUser = null;
         populatePartnerDanceSelect();
+        loadPartners();
         loadUnreadCount();
         if (document.getElementById('profile-view').classList.contains('active')) {
           loadUserProfile();
@@ -679,6 +756,7 @@ async function loadPartners() {
   let url = `${API_BASE}/users`;
   const params = [];
   
+  if (currentCity) params.push(`city=${currentCity}`);
   if (style) params.push(`style=${style}`);
   if (role) params.push(`role=${role}`);
   if (level) params.push(`level=${level}`);
@@ -953,7 +1031,9 @@ function createPartnerCard(user) {
 
 async function loadHotRanking() {
   try {
-    const res = await fetch(`${API_BASE}/dances/hot?limit=5`);
+    const params = new URLSearchParams({ limit: 5 });
+    if (currentCity) params.set('city', currentCity);
+    const res = await fetch(`${API_BASE}/dances/hot?${params.toString()}`);
     const dances = await res.json();
     
     const list = document.getElementById('hotRankingList');
@@ -1070,11 +1150,23 @@ function initPublishForm() {
     
     const maxAttendees = formData.get('maxAttendees');
     const registrationDeadline = formData.get('registrationDeadline');
+    const city = formData.get('city');
+    
+    const cityCoords = {
+      '上海': { lat: 31.2304, lng: 121.4737 },
+      '北京': { lat: 39.9042, lng: 116.4074 },
+      '广州': { lat: 23.1291, lng: 113.2644 },
+      '深圳': { lat: 22.5431, lng: 114.0579 },
+      '成都': { lat: 30.5728, lng: 104.0668 },
+      '杭州': { lat: 30.2741, lng: 120.1551 }
+    };
+    const coords = cityCoords[city] || { lat: 31.2304, lng: 121.4737 };
     
     const danceData = {
       title: formData.get('title'),
       venue: formData.get('venue'),
       address: formData.get('address'),
+      city,
       date: formData.get('date'),
       startTime: formData.get('startTime'),
       endTime: formData.get('endTime'),
@@ -1084,8 +1176,8 @@ function initPublishForm() {
       organizer: formData.get('organizer'),
       maxAttendees: maxAttendees ? parseInt(maxAttendees) : null,
       registrationDeadline: registrationDeadline ? new Date(registrationDeadline).toISOString() : null,
-      latitude: 31.2304,
-      longitude: 121.4737
+      latitude: coords.lat,
+      longitude: coords.lng
     };
     
     try {

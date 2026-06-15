@@ -13,6 +13,11 @@
         <span class="logo-icon">💃</span>
         <h1>莎莎舞平台</h1>
       </div>
+      <div class="city-switcher">
+        <span class="city-label">🏙️</span>
+        <select id="citySelect" class="city-select">
+        </select>
+      </div>
       <nav class="nav">
         <button class="nav-btn active" data-view="calendar">舞会日历</button>
         <button class="nav-btn" data-view="map">附近地图</button>
@@ -170,6 +175,11 @@
             <div class="form-group">
               <label>场地名称 *</label>
               <input type="text" name="venue" required placeholder="例如：热情拉丁舞厅">
+            </div>
+            <div class="form-group">
+              <label>所在城市 *</label>
+              <select name="city" id="publishCitySelect" required>
+              </select>
             </div>
           </div>
           
@@ -363,8 +373,9 @@
             </select>
           </div>
           <div class="form-group">
-            <label>城市</label>
-            <input type="text" name="city" id="editCity">
+            <label>城市 *</label>
+            <select name="city" id="editCity" required>
+            </select>
           </div>
         </div>
         <div class="form-group">
