@@ -1827,16 +1827,20 @@ async function loadUserProfile() {
   }
   
   try {
-    const [userRes, reviewsRes, favoritesRes] = await Promise.all([
+    const [userRes, reviewsRes, favoritesRes, historyRes, statsRes] = await Promise.all([
       fetch(`${API_BASE}/users/${currentUser.id}?currentUserId=${currentUser.id}`),
       fetch(`${API_BASE}/reviews?userId=${currentUser.id}`),
-      loadUserFavorites()
+      loadUserFavorites(),
+      fetch(`${API_BASE}/users/${currentUser.id}/dance-history`),
+      fetch(`${API_BASE}/users/${currentUser.id}/dance-stats`)
     ]);
     
     const userData = await userRes.json();
     currentUser = { ...currentUser, ...userData };
     const reviews = await reviewsRes.json();
     const favorites = favoritesRes;
+    const danceHistory = await historyRes.json();
+    const danceStats = await statsRes.json();
     
     const followerCount = userData.followerCount || 0;
     const followingCount = userData.followingCount || 0;
@@ -1894,6 +1898,148 @@ async function loadUserProfile() {
       `;
     }
     
+    const topPartnersHtml = danceStats.topPartners && danceStats.topPartners.length > 0
+      ? danceStats.topPartners.map((item, idx) => `
+          <div class="top-partner-item">
+            <div class="top-partner-rank rank-${idx + 1}">${idx + 1}</div>
+            <img src="${item.partner.avatar}" alt="${item.partner.name}" class="top-partner-avatar">
+            <div class="top-partner-info">
+              <div class="top-partner-name">${item.partner.name}</div>
+              <div class="top-partner-meta">共舞 ${item.count} 场 · ${item.totalSongs} 曲</div>
+            </div>
+          </div>
+        `).join('')
+      : `<div class="empty-mini">暂无数据</div>`;
+    
+    const topVenuesHtml = danceStats.topVenues && danceStats.topVenues.length > 0
+      ? danceStats.topVenues.slice(0, 3).map((item, idx) => `
+          <div class="top-venue-item">
+            <div class="top-venue-rank rank-${idx + 1}">${idx + 1}</div>
+            <div class="top-venue-info">
+              <div class="top-venue-name">${item.venue}</div>
+              <div class="top-venue-meta">${item.count} 次</div>
+            </div>
+          </div>
+        `).join('')
+      : `<div class="empty-mini">暂无数据</div>`;
+    
+    const statsPanelHtml = `
+      <div class="profile-section stats-section">
+        <h3>📊 舞蹈数据统计</h3>
+        <div class="stats-grid">
+          <div class="stat-card stat-total">
+            <div class="stat-icon">🎭</div>
+            <div class="stat-number">${danceStats.totalAttended || 0}</div>
+            <div class="stat-label">累计参加舞会</div>
+          </div>
+          <div class="stat-card stat-venue">
+            <div class="stat-icon">🏠</div>
+            <div class="stat-number">${danceStats.topVenue ? danceStats.topVenue.count : 0}</div>
+            <div class="stat-label">最常去场馆</div>
+            <div class="stat-sub">${danceStats.topVenue ? danceStats.topVenue.venue : '暂无'}</div>
+          </div>
+          <div class="stat-card stat-songs">
+            <div class="stat-icon">🎵</div>
+            <div class="stat-number">${danceStats.totalDancedSongs || 0}</div>
+            <div class="stat-label">累计共舞曲数</div>
+          </div>
+        </div>
+        <div class="stats-detail-grid">
+          <div class="stats-detail-card">
+            <h4>🤝 最常合作舞伴 Top3</h4>
+            <div class="top-list">
+              ${topPartnersHtml}
+            </div>
+          </div>
+          <div class="stats-detail-card">
+            <h4>📍 常去场馆排行</h4>
+            <div class="top-list">
+              ${topVenuesHtml}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    const timelineHtml = `
+      <div class="profile-section timeline-section">
+        <h3>👣 我的舞蹈足迹</h3>
+        ${danceHistory && danceHistory.length > 0 ? `
+          <div class="dance-timeline">
+            ${danceHistory.map((dance, idx) => {
+              const dateObj = new Date(dance.date);
+              const year = dateObj.getFullYear();
+              const month = dateObj.getMonth() + 1;
+              const day = dateObj.getDate();
+              const weekDay = ['周日','周一','周二','周三','周四','周五','周六'][dateObj.getDay()];
+              const styleTags = dance.styles.map(s => 
+                `<span class="style-tag style-${s.toLowerCase()}">${s}</span>`
+              ).join('');
+              const partnersHtml = dance.partners && dance.partners.length > 0
+                ? dance.partners.map(p => `
+                    <div class="dance-partner" title="${p.name} · 共舞${p.dancedSongs}曲">
+                      <img src="${p.avatar}" alt="${p.name}">
+                      <span class="partner-tooltip">${p.name}</span>
+                    </div>
+                  `).join('')
+                : '<span class="no-partner">暂无记录</span>';
+              const danceStylesHtml = dance.partners && dance.partners.length > 0
+                ? dance.partners.map(p => `<span class="partner-style">${p.name}: ${p.styles.join('、')}</span>`).join('')
+                : '<span class="no-partner">暂无</span>';
+              
+              return `
+                <div class="timeline-item" data-dance-id="${dance.id}">
+                  <div class="timeline-dot"></div>
+                  <div class="timeline-date">
+                    <div class="date-year">${year}</div>
+                    <div class="date-day">${month}月${day}日</div>
+                    <div class="date-week">${weekDay}</div>
+                  </div>
+                  <div class="timeline-card">
+                    <div class="timeline-card-header">
+                      <h4>${dance.title}</h4>
+                      <div class="timeline-time">${dance.startTime} - ${dance.endTime}</div>
+                    </div>
+                    <div class="timeline-card-body">
+                      <div class="info-row">
+                        <span class="info-icon">📍</span>
+                        <span class="info-text">${dance.venue}</span>
+                      </div>
+                      <div class="info-row">
+                        <span class="info-icon">💰</span>
+                        <span class="info-text">¥${dance.price}</span>
+                      </div>
+                      <div class="info-row styles-row">
+                        <span class="info-icon">💃</span>
+                        <div class="info-styles">${styleTags}</div>
+                      </div>
+                      <div class="info-row">
+                        <span class="info-icon">🩰</span>
+                        <div class="info-text">跳过的舞种：${danceStylesHtml}</div>
+                      </div>
+                      <div class="info-row partners-row">
+                        <span class="info-icon">🤝</span>
+                        <div class="info-text">
+                          <span class="partners-label">邀约舞伴：</span>
+                          <div class="partners-list">${partnersHtml}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        ` : `
+          <div class="empty-state">
+            <div class="empty-icon">👣</div>
+            <p>还没有舞蹈足迹</p>
+            <p class="empty-hint">报名参加舞会并签到后，你的舞蹈足迹会出现在这里</p>
+          </div>
+        `}
+      </div>
+    `;
+    
     container.innerHTML = `
       <div class="profile-edit-section">
         <button class="profile-edit-btn" onclick="openEditProfileModal()">✏️ 编辑资料</button>
@@ -1943,6 +2089,10 @@ async function loadUserProfile() {
           ${currentUser.bio ? `<div class="profile-bio">${currentUser.bio}</div>` : ''}
         </div>
       </div>
+      ${statsPanelHtml}
+      
+      ${timelineHtml}
+      
       <div class="profile-follow-section">
         <h3>👥 社交关系</h3>
         <div class="follow-tabs">
@@ -1983,6 +2133,16 @@ async function loadUserProfile() {
         const danceId = parseInt(item.dataset.danceId);
         document.querySelector('.nav-btn[data-view="calendar"]').click();
         showDanceDetail(danceId);
+      });
+    });
+    
+    container.querySelectorAll('.timeline-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const danceId = parseInt(item.dataset.danceId);
+        if (danceId) {
+          document.querySelector('.nav-btn[data-view="calendar"]').click();
+          showDanceDetail(danceId);
+        }
       });
     });
     

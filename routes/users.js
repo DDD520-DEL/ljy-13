@@ -14,7 +14,9 @@ let {
   removeFollow,
   normalizeStyles,
   getStyleNames,
-  getStyleWeightMap
+  getStyleWeightMap,
+  getUserAttendedDances,
+  getUserDanceStats
 } = db;
 
 router.get('/', (req, res) => {
@@ -375,5 +377,29 @@ function getLevelValue(level) {
   const levels = { beginner: 1, intermediate: 2, advanced: 3 };
   return levels[level] || 1;
 }
+
+router.get('/:id/dance-history', (req, res) => {
+  const userId = parseInt(req.params.id);
+  const user = users.find(u => u.id === userId);
+  
+  if (!user) {
+    return res.status(404).json({ error: '用户不存在' });
+  }
+  
+  const attendedDances = getUserAttendedDances(userId);
+  res.json(attendedDances);
+});
+
+router.get('/:id/dance-stats', (req, res) => {
+  const userId = parseInt(req.params.id);
+  const user = users.find(u => u.id === userId);
+  
+  if (!user) {
+    return res.status(404).json({ error: '用户不存在' });
+  }
+  
+  const stats = getUserDanceStats(userId);
+  res.json(stats);
+});
 
 module.exports = router;

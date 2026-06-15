@@ -336,6 +336,174 @@ let dances = [
     maxAttendees: 40,
     registrationDeadline: "2026-06-28T18:00:00Z",
     createdAt: "2026-06-07T16:00:00Z"
+  },
+  {
+    id: 17,
+    title: "新年拉丁狂欢夜",
+    venue: "热情拉丁舞厅",
+    address: "上海市黄浦区南京东路100号",
+    city: "上海",
+    date: "2026-01-10",
+    startTime: "20:00",
+    endTime: "24:00",
+    styles: ["Cuban", "LA", "Bachata"],
+    price: 128,
+    description: "新年第一场拉丁狂欢派对，现场乐队+专业表演",
+    organizer: "热情舞蹈工作室",
+    latitude: 31.2304,
+    longitude: 121.4737,
+    viewCount: 456,
+    attendeeCount: 58,
+    maxAttendees: 80,
+    registrationDeadline: "2026-01-09T18:00:00Z",
+    createdAt: "2025-12-28T10:00:00Z"
+  },
+  {
+    id: 18,
+    title: "情人节浪漫舞会",
+    venue: "星空舞蹈俱乐部",
+    address: "上海市浦东新区陆家嘴环路500号",
+    city: "上海",
+    date: "2026-02-14",
+    startTime: "19:30",
+    endTime: "23:30",
+    styles: ["Cuban", "Bachata"],
+    price: 168,
+    description: "情人节专属浪漫舞会，双人套票优惠，赠送玫瑰花",
+    organizer: "星空舞蹈俱乐部",
+    latitude: 31.2397,
+    longitude: 121.4998,
+    viewCount: 523,
+    attendeeCount: 52,
+    maxAttendees: 70,
+    registrationDeadline: "2026-02-13T20:00:00Z",
+    createdAt: "2026-02-01T12:00:00Z"
+  },
+  {
+    id: 19,
+    title: "三八妇女节特别场",
+    venue: "阳光艺术空间",
+    address: "上海市徐汇区衡山路880号",
+    city: "上海",
+    date: "2026-03-08",
+    startTime: "19:00",
+    endTime: "22:30",
+    styles: ["Cuban", "Bachata", "LA"],
+    price: 38,
+    description: "女神节专属优惠，女士半价入场，现场教学体验",
+    organizer: "阳光艺术空间",
+    latitude: 31.2001,
+    longitude: 121.4365,
+    viewCount: 312,
+    attendeeCount: 42,
+    maxAttendees: 60,
+    registrationDeadline: "2026-03-07T18:00:00Z",
+    createdAt: "2026-03-01T09:00:00Z"
+  },
+  {
+    id: 20,
+    title: "NY风格大师班舞会",
+    venue: "城市舞蹈中心",
+    address: "上海市静安区延安西路1200号",
+    city: "上海",
+    date: "2026-04-12",
+    startTime: "18:00",
+    endTime: "22:30",
+    styles: ["NY", "LA"],
+    price: 220,
+    description: "特邀国际NY风格大师授课+舞会练习，限40人",
+    organizer: "城市舞蹈中心",
+    latitude: 31.2289,
+    longitude: 121.4475,
+    viewCount: 278,
+    attendeeCount: 36,
+    maxAttendees: 40,
+    registrationDeadline: "2026-04-10T20:00:00Z",
+    createdAt: "2026-04-01T14:00:00Z"
+  },
+  {
+    id: 21,
+    title: "春季社交舞派对",
+    venue: "热情拉丁舞厅",
+    address: "上海市黄浦区南京东路100号",
+    city: "上海",
+    date: "2026-04-26",
+    startTime: "20:00",
+    endTime: "23:30",
+    styles: ["Cuban", "Bachata", "LA"],
+    price: 88,
+    description: "春暖花开的季节，一起来跳舞吧！新人免费体验",
+    organizer: "热情舞蹈工作室",
+    latitude: 31.2304,
+    longitude: 121.4737,
+    viewCount: 234,
+    attendeeCount: 45,
+    maxAttendees: 60,
+    registrationDeadline: "2026-04-25T18:00:00Z",
+    createdAt: "2026-04-18T10:00:00Z"
+  },
+  {
+    id: 22,
+    title: "五一劳动节狂欢",
+    venue: "星空舞蹈俱乐部",
+    address: "上海市浦东新区陆家嘴环路500号",
+    city: "上海",
+    date: "2026-05-17",
+    startTime: "19:30",
+    endTime: "01:00",
+    styles: ["LA", "NY", "Cuban", "Bachata"],
+    price: 108,
+    description: "五一假期超长舞会，通宵达旦跳不停，抽奖活动",
+    organizer: "星空舞蹈俱乐部",
+    latitude: 31.2397,
+    longitude: 121.4998,
+    viewCount: 421,
+    attendeeCount: 65,
+    maxAttendees: 90,
+    registrationDeadline: "2026-05-16T22:00:00Z",
+    createdAt: "2026-05-08T15:00:00Z"
+  },
+  {
+    id: 23,
+    title: "周日下午社交舞",
+    venue: "阳光艺术空间",
+    address: "上海市徐汇区衡山路880号",
+    city: "上海",
+    date: "2026-05-24",
+    startTime: "15:00",
+    endTime: "18:00",
+    styles: ["Cuban", "Bachata"],
+    price: 50,
+    description: "周末下午轻松社交舞会，新手友好，免费体验课",
+    organizer: "阳光艺术空间",
+    latitude: 31.2001,
+    longitude: 121.4365,
+    viewCount: 189,
+    attendeeCount: 28,
+    maxAttendees: 50,
+    registrationDeadline: "2026-05-24T12:00:00Z",
+    createdAt: "2026-05-20T09:00:00Z"
+  },
+  {
+    id: 24,
+    title: "儿童节主题派对",
+    venue: "热情拉丁舞厅",
+    address: "上海市黄浦区南京东路100号",
+    city: "上海",
+    date: "2026-06-07",
+    startTime: "19:30",
+    endTime: "23:00",
+    styles: ["Cuban", "LA", "NY"],
+    price: 61,
+    description: "重返童年主题派对，怀旧游戏+趣味舞蹈互动",
+    organizer: "热情舞蹈工作室",
+    latitude: 31.2304,
+    longitude: 121.4737,
+    viewCount: 298,
+    attendeeCount: 48,
+    maxAttendees: 65,
+    registrationDeadline: "2026-06-06T20:00:00Z",
+    createdAt: "2026-06-01T11:00:00Z"
   }
 ];
 
@@ -722,17 +890,46 @@ let messages = [
   }
 ];
 
-let nextDanceId = 17;
+let nextDanceId = 25;
 let nextUserId = 11;
 let nextInvitationId = 3;
 let nextReviewId = 4;
 let nextFollowId = 5;
 let nextNotificationId = 2;
-let nextRegistrationId = 8;
+let nextRegistrationId = 30;
 let nextCommentId = 6;
 let nextFavoriteId = 5;
 let nextConversationId = 3;
 let nextMessageId = 9;
+let nextCheckinId = 13;
+
+let checkins = [
+  { id: 1, danceId: 17, userId: 1, checkedInAt: "2026-01-10T20:15:00Z" },
+  { id: 2, danceId: 18, userId: 1, checkedInAt: "2026-02-14T19:45:00Z" },
+  { id: 3, danceId: 19, userId: 1, checkedInAt: "2026-03-08T20:30:00Z" },
+  { id: 4, danceId: 20, userId: 1, checkedInAt: "2026-04-12T19:50:00Z" },
+  { id: 5, danceId: 21, userId: 1, checkedInAt: "2026-04-26T20:10:00Z" },
+  { id: 6, danceId: 22, userId: 1, checkedInAt: "2026-05-17T20:20:00Z" },
+  { id: 7, danceId: 23, userId: 1, checkedInAt: "2026-05-24T20:05:00Z" },
+  { id: 8, danceId: 24, userId: 1, checkedInAt: "2026-06-07T19:55:00Z" },
+  { id: 9, danceId: 17, userId: 2, checkedInAt: "2026-01-10T20:20:00Z" },
+  { id: 10, danceId: 19, userId: 2, checkedInAt: "2026-03-08T20:35:00Z" },
+  { id: 11, danceId: 22, userId: 3, checkedInAt: "2026-05-17T20:25:00Z" },
+  { id: 12, danceId: 24, userId: 3, checkedInAt: "2026-06-07T20:00:00Z" }
+];
+
+let dancePartnerRecords = [
+  { id: 1, danceId: 17, userId: 1, partnerId: 2, styles: ["Cuban", "LA"], dancedSongs: 8 },
+  { id: 2, danceId: 18, userId: 1, partnerId: 6, styles: ["Cuban", "Bachata"], dancedSongs: 6 },
+  { id: 3, danceId: 19, userId: 1, partnerId: 2, styles: ["Cuban"], dancedSongs: 10 },
+  { id: 4, danceId: 19, userId: 1, partnerId: 8, styles: ["LA", "NY"], dancedSongs: 4 },
+  { id: 5, danceId: 20, userId: 1, partnerId: 6, styles: ["NY", "LA"], dancedSongs: 7 },
+  { id: 6, danceId: 21, userId: 1, partnerId: 2, styles: ["Cuban", "Bachata"], dancedSongs: 9 },
+  { id: 7, danceId: 22, userId: 1, partnerId: 3, styles: ["LA", "NY", "Cuban"], dancedSongs: 12 },
+  { id: 8, danceId: 23, userId: 1, partnerId: 6, styles: ["Bachata", "Cuban"], dancedSongs: 5 },
+  { id: 9, danceId: 24, userId: 1, partnerId: 2, styles: ["Cuban", "LA"], dancedSongs: 11 },
+  { id: 10, danceId: 24, userId: 1, partnerId: 3, styles: ["NY"], dancedSongs: 3 }
+];
 
 function isFollowing(followerId, followingId) {
   return follows.some(f => f.followerId === followerId && f.followingId === followingId);
@@ -1149,6 +1346,129 @@ function createConversationIfNotExists(user1Id, user2Id) {
   return conversation;
 }
 
+function isCheckedIn(danceId, userId) {
+  return checkins.some(c => c.danceId === parseInt(danceId) && c.userId === parseInt(userId));
+}
+
+function checkIn(danceId, userId) {
+  if (isCheckedIn(danceId, userId)) {
+    return null;
+  }
+  if (!isRegistered(danceId, userId)) {
+    return null;
+  }
+  const checkin = {
+    id: nextCheckinId++,
+    danceId: parseInt(danceId),
+    userId: parseInt(userId),
+    checkedInAt: new Date().toISOString()
+  };
+  checkins.push(checkin);
+  return checkin;
+}
+
+function getUserCheckins(userId) {
+  return checkins.filter(c => c.userId === parseInt(userId));
+}
+
+function getDanceCheckins(danceId) {
+  return checkins.filter(c => c.danceId === parseInt(danceId));
+}
+
+function getUserAttendedDances(userId) {
+  const uid = parseInt(userId);
+  const userCheckins = getUserCheckins(uid);
+  const attendedDanceIds = userCheckins.map(c => c.danceId);
+  const attendedDances = dances
+    .filter(d => attendedDanceIds.includes(d.id))
+    .map(dance => {
+      const checkin = userCheckins.find(c => c.danceId === dance.id);
+      const partners = getDancePartnersForUser(uid, dance.id);
+      return {
+        ...dance,
+        checkedInAt: checkin ? checkin.checkedInAt : null,
+        partners: partners
+      };
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+  return attendedDances;
+}
+
+function getDancePartnersForUser(userId, danceId) {
+  const uid = parseInt(userId);
+  const did = parseInt(danceId);
+  const partnerRecords = dancePartnerRecords.filter(r => r.userId === uid && r.danceId === did);
+  return partnerRecords.map(r => {
+    const partner = users.find(u => u.id === r.partnerId);
+    if (!partner) return null;
+    return {
+      id: partner.id,
+      name: partner.name,
+      avatar: partner.avatar,
+      styles: r.styles,
+      dancedSongs: r.dancedSongs
+    };
+  }).filter(Boolean);
+}
+
+function getUserDanceStats(userId) {
+  const uid = parseInt(userId);
+  const attendedDances = getUserAttendedDances(uid);
+  const totalCount = attendedDances.length;
+
+  const venueCount = {};
+  const partnerCount = {};
+  const styleCount = {};
+  let totalSongs = 0;
+
+  attendedDances.forEach(dance => {
+    if (dance.venue) {
+      venueCount[dance.venue] = (venueCount[dance.venue] || 0) + 1;
+    }
+    if (dance.styles) {
+      dance.styles.forEach(style => {
+        styleCount[style] = (styleCount[style] || 0) + 1;
+      });
+    }
+    if (dance.partners) {
+      dance.partners.forEach(partner => {
+        if (!partnerCount[partner.id]) {
+          partnerCount[partner.id] = {
+            partner: { id: partner.id, name: partner.name, avatar: partner.avatar },
+            count: 0,
+            totalSongs: 0
+          };
+        }
+        partnerCount[partner.id].count += 1;
+        partnerCount[partner.id].totalSongs += (partner.dancedSongs || 0);
+        totalSongs += (partner.dancedSongs || 0);
+      });
+    }
+  });
+
+  const topVenues = Object.entries(venueCount)
+    .map(([venue, count]) => ({ venue, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const topPartners = Object.values(partnerCount)
+    .sort((a, b) => b.count - a.count || b.totalSongs - a.totalSongs)
+    .slice(0, 3);
+
+  const topStyles = Object.entries(styleCount)
+    .map(([style, count]) => ({ style, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+
+  return {
+    totalAttended: totalCount,
+    topVenues: topVenues,
+    topVenue: topVenues[0] || null,
+    topPartners: topPartners,
+    topStyles: topStyles,
+    totalDancedSongs: totalSongs
+  };
+}
+
 module.exports = {
   SUPPORTED_CITIES,
   dances,
@@ -1205,5 +1525,14 @@ module.exports = {
   sendMessage,
   getUnreadMessageCount,
   getTotalUnreadCount,
-  createConversationIfNotExists
+  createConversationIfNotExists,
+  checkins,
+  dancePartnerRecords,
+  isCheckedIn,
+  checkIn,
+  getUserCheckins,
+  getDanceCheckins,
+  getUserAttendedDances,
+  getDancePartnersForUser,
+  getUserDanceStats
 };
