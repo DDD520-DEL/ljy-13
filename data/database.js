@@ -108,7 +108,7 @@ let users = [
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=zhangxiaoming",
     danceYears: 3,
     role: "leader",
-    styles: ["Cuban", "LA"],
+    styles: [{ name: "Cuban", weight: 80 }, { name: "LA", weight: 50 }],
     level: "intermediate",
     bio: "热爱莎莎舞，喜欢Cuban风格的自由和LA风格的酷炫",
     city: "上海",
@@ -120,7 +120,7 @@ let users = [
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=litingting",
     danceYears: 2,
     role: "follower",
-    styles: ["Cuban", "Bachata"],
+    styles: [{ name: "Cuban", weight: 60 }, { name: "Bachata", weight: 70 }],
     level: "beginner",
     bio: "刚开始学习莎莎舞，希望找到耐心的舞伴一起进步",
     city: "上海",
@@ -132,7 +132,7 @@ let users = [
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=wangdawei",
     danceYears: 5,
     role: "both",
-    styles: ["NY", "LA"],
+    styles: [{ name: "NY", weight: 90 }, { name: "LA", weight: 85 }],
     level: "advanced",
     bio: "职业舞者，NY和LA风格双修，可引带可跟随",
     city: "上海",
@@ -144,7 +144,7 @@ let users = [
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=chenxiaoyan",
     danceYears: 4,
     role: "follower",
-    styles: ["Cuban"],
+    styles: [{ name: "Cuban", weight: 95 }],
     level: "intermediate",
     bio: "Cuban风格爱好者，喜欢热情奔放的舞蹈",
     city: "上海",
@@ -156,7 +156,7 @@ let users = [
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=liuzhiqiang",
     danceYears: 1,
     role: "leader",
-    styles: ["LA"],
+    styles: [{ name: "LA", weight: 40 }],
     level: "beginner",
     bio: "LA风格新手，正在努力学习中",
     city: "上海",
@@ -428,6 +428,30 @@ function isRegistrationClosed(danceId) {
   return new Date() > new Date(dance.registrationDeadline);
 }
 
+function normalizeStyles(styles) {
+  if (!styles) return [];
+  if (Array.isArray(styles) && styles.length > 0 && typeof styles[0] === 'string') {
+    return styles.map(name => ({ name, weight: 50 }));
+  }
+  return styles.map(s => ({
+    name: s.name,
+    weight: Math.max(0, Math.min(100, parseInt(s.weight) || 50))
+  }));
+}
+
+function getStyleNames(styles) {
+  if (!styles) return [];
+  return normalizeStyles(styles).map(s => s.name);
+}
+
+function getStyleWeightMap(styles) {
+  const map = {};
+  normalizeStyles(styles).forEach(s => {
+    map[s.name] = s.weight;
+  });
+  return map;
+}
+
 module.exports = {
   dances,
   users,
@@ -459,5 +483,8 @@ module.exports = {
   getRegisteredUsers,
   getUserRegisteredDances,
   isRegistrationFull,
-  isRegistrationClosed
+  isRegistrationClosed,
+  normalizeStyles,
+  getStyleNames,
+  getStyleWeightMap
 };

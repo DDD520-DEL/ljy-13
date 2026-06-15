@@ -1,5 +1,7 @@
 const API_BASE = '/api';
 
+const ALL_DANCE_STYLES = ['Cuban', 'LA', 'NY', 'Bachata'];
+
 let currentDate = new Date();
 let selectedDate = null;
 let currentUser = null;
@@ -7,6 +9,36 @@ let allDances = [];
 let allUsers = [];
 let inviteTargetUserId = null;
 let preselectedDanceId = null;
+
+function normalizeStylesFrontend(styles) {
+  if (!styles) return [];
+  if (Array.isArray(styles) && styles.length > 0 && typeof styles[0] === 'string') {
+    return styles.map(name => ({ name, weight: 50 }));
+  }
+  return styles.map(s => ({
+    name: s.name,
+    weight: Math.max(0, Math.min(100, parseInt(s.weight) || 50))
+  }));
+}
+
+function getStyleNamesFrontend(styles) {
+  return normalizeStylesFrontend(styles).map(s => s.name);
+}
+
+function getStyleWeightMapFrontend(styles) {
+  const map = {};
+  normalizeStylesFrontend(styles).forEach(s => {
+    map[s.name] = s.weight;
+  });
+  return map;
+}
+
+function renderStyleTagsWithWeights(styles) {
+  const normalized = normalizeStylesFrontend(styles);
+  return normalized.map(s => 
+    `<span class="style-tag style-${s.name.toLowerCase()} style-tag-with-weight">${s.name}<span class="weight">${s.weight}%</span></span>`
+  ).join('');
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
@@ -17,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initModals();
   initReviewModal();
   initNotifications();
+  initEditProfileModal();
   loadUsers();
   loadDances();
   loadHotRanking();
@@ -590,7 +623,11 @@ function inviteToDance(danceId) {
 async function loadUsers() {
   try {
     const res = await fetch(`${API_BASE}/users`);
-    allUsers = await res.json();
+    const rawUsers = await res.json();
+    allUsers = rawUsers.map(u => ({
+      ...u,
+      styles: normalizeStylesFrontend(u.styles)
+    }));
     
     const select = document.getElementById('currentUserSelect');
     allUsers.forEach(user => {
@@ -644,7 +681,11 @@ async function loadPartners() {
   
   try {
     const res = await fetch(url);
-    let users = await res.json();
+    let rawUsers = await res.json();
+    let users = rawUsers.map(u => ({
+      ...u,
+      styles: normalizeStylesFrontend(u.styles)
+    }));
     
     if (currentUser) {
       users = users.filter(u => u.id !== currentUser.id);
@@ -682,12 +723,7 @@ async function loadPartners() {
     users = users.map(u => ({
       ...u,
       matchScore: calculateMatchScore(u)
-    })).sort((a, b) => {
-      if (b.isFollowing !== a.isFollowing) {
-        return b.isFollowing ? 1 : -1;
-      }
-      return b.matchScore - a.matchScore;
-    });
+    })).sort((a, b) => b.matchScore - a.matchScore);
     
     renderPartners(users);
   } catch (e) {
@@ -695,23 +731,79 @@ async function loadPartners() {
   }
 }
 
+function calculateWeightedStyleMatchFrontend(currentStyles, candidateStyles) {
+  const currentWeights = getStyleWeightMapFrontend(currentStyles);
+  const candidateWeights = getStyleWeightMapFrontend(candidateStyles);
+  
+  const currentStyleNames = Object.keys(currentWeights);
+  const candidateStyleNames = Object.keys(candidateWeights);
+  
+  const commonStyles = currentStyleNames.filter(s => candidateStyleNames.includes(s));
+  
+  if (commonStyles.length === 0) {
+    return { score: 0, details: [] };
+  }
+  
+  let weightedSum = 0;
+  let details = [];
+  
+  commonStyles.forEach(styleName => {
+    const cw = currentWeights[styleName];
+    const pw = candidateWeights[styleName];
+    const minWeight = Math.min(cw, pw);
+    const maxWeight = Math.max(cw, pw);
+    const styleMatch = (minWeight / maxWeight) * 100;
+    weightedSum += styleMatch;
+    details.push({
+      style: styleName,
+      currentWeight: cw,
+      candidateWeight: pw,
+      matchScore: Math.round(styleMatch)
+    });
+  });
+  
+  const totalPossible = currentStyleNames.length * 100;
+  const finalScore = Math.round((weightedSum / totalPossible) * 100);
+  
+  return { score: finalScore, details };
+}
+
 function calculateMatchScore(user) {
   if (!currentUser) return 50;
   
-  let score = 40;
+  let score = 0;
   
-  const commonStyles = user.styles.filter(s => currentUser.styles.includes(s));
-  score += commonStyles.length * 10;
+  const styleMatch = calculateWeightedStyleMatchFrontend(currentUser.styles, user.styles);
+  score += styleMatch.score * 0.5;
   
-  if (user.level === currentUser.level) {
-    score += 15;
-  }
+  const levelValues = { beginner: 1, intermediate: 2, advanced: 3 };
+  const currentLevelVal = levelValues[currentUser.level] || 1;
+  const userLevelVal = levelValues[user.level] || 1;
+  const levelDiff = Math.abs(userLevelVal - currentLevelVal);
+  const levelScore = (3 - levelDiff) * 25;
+  score += levelScore;
   
   if (user.city === currentUser.city) {
-    score += 10;
+    score += 20;
   }
   
-  return Math.min(score, 98);
+  let targetRole = null;
+  if (currentUser.role === 'leader') {
+    targetRole = 'follower';
+  } else if (currentUser.role === 'follower') {
+    targetRole = 'leader';
+  }
+  if (targetRole && (user.role === targetRole || user.role === 'both')) {
+    score += 5;
+  }
+  
+  if (user.isMutualFollowing) {
+    score += 10;
+  } else if (user.isFollowing) {
+    score += 5;
+  }
+  
+  return Math.min(Math.round(score), 100);
 }
 
 async function smartMatch() {
@@ -724,8 +816,13 @@ async function smartMatch() {
     const res = await fetch(`${API_BASE}/users/match/${currentUser.id}`);
     const data = await res.json();
     
-    renderPartners(data.matches);
-    showToast('智能匹配完成！', 'success');
+    const normalizedMatches = data.matches.map(u => ({
+      ...u,
+      styles: normalizeStylesFrontend(u.styles)
+    }));
+    
+    renderPartners(normalizedMatches);
+    showToast('智能匹配完成！已按权重综合评分排序', 'success');
   } catch (e) {
     console.error('智能匹配失败:', e);
     showToast('匹配失败', 'error');
@@ -771,11 +868,28 @@ function createPartnerCard(user) {
   const roleText = { leader: '引带', follower: '跟随', both: '双修' }[user.role] || user.role;
   const levelText = { beginner: '入门', intermediate: '中级', advanced: '高级' }[user.level] || user.level;
   
-  const styleTags = user.styles.map(s => 
-    `<span class="style-tag style-${s.toLowerCase()}">${s}</span>`
-  ).join('');
+  const styleTags = renderStyleTagsWithWeights(user.styles);
   
   const matchScore = user.matchScore || 50;
+  
+  let matchBreakdownHtml = '';
+  if (user.matchBreakdown) {
+    const bd = user.matchBreakdown;
+    let styleDetailsHtml = '';
+    if (bd.styleMatch && bd.styleMatch.details && bd.styleMatch.details.length > 0) {
+      styleDetailsHtml = bd.styleMatch.details.map(d => 
+        `<span class="match-style-detail">${d.style}: ${d.currentWeight}%↔${d.candidateWeight}% (${d.matchScore}%)</span>`
+      ).join('');
+    }
+    matchBreakdownHtml = `
+      <div class="match-breakdown">
+        ${styleDetailsHtml}
+        <div class="match-breakdown-item"><span>风格匹配</span><span>${bd.styleMatch ? bd.styleMatch.score : 0}分</span></div>
+        <div class="match-breakdown-item"><span>水平匹配</span><span>${bd.levelMatch ? bd.levelMatch.score : 0}分</span></div>
+        <div class="match-breakdown-item"><span>城市匹配</span><span>${bd.cityMatch ? bd.cityMatch.score : 0}分</span></div>
+      </div>
+    `;
+  }
   
   let followBadge = '';
   if (user.isMutualFollowing) {
@@ -819,6 +933,7 @@ function createPartnerCard(user) {
         </div>
         <span class="match-score-text">${matchScore}%</span>
       </div>
+      ${matchBreakdownHtml}
       <div class="partner-card-actions">
         <button class="invite-btn" data-user-id="${user.id}">发起邀约</button>
         ${followBtn}
@@ -1285,6 +1400,7 @@ async function loadUserProfile() {
     ]);
     
     const userData = await userRes.json();
+    currentUser = { ...currentUser, ...userData };
     const reviews = await reviewsRes.json();
     
     const followerCount = userData.followerCount || 0;
@@ -1293,9 +1409,7 @@ async function loadUserProfile() {
     const roleText = { leader: '引带', follower: '跟随', both: '双修' }[currentUser.role] || currentUser.role;
     const levelText = { beginner: '入门', intermediate: '中级', advanced: '高级' }[currentUser.level] || currentUser.level;
     
-    const styleTags = currentUser.styles.map(s => 
-      `<span class="style-tag style-${s.toLowerCase()}">${s}</span>`
-    ).join('');
+    const styleTags = renderStyleTagsWithWeights(currentUser.styles);
     
     let reviewsHtml = '';
     if (reviews.length > 0) {
@@ -1346,12 +1460,17 @@ async function loadUserProfile() {
     }
     
     container.innerHTML = `
+      <div class="profile-edit-section">
+        <button class="profile-edit-btn" onclick="openEditProfileModal()">✏️ 编辑资料</button>
+      </div>
       <div class="profile-header">
         <div class="profile-avatar-large">
           <img src="${currentUser.avatar}" alt="${currentUser.name}">
         </div>
         <div class="profile-info">
-          <h2>${currentUser.name}</h2>
+          <div class="profile-info-header">
+            <h2>${currentUser.name}</h2>
+          </div>
           <div class="profile-tags">
             <span class="role-badge role-${currentUser.role}">${roleText}</span>
             <span class="level-badge level-${currentUser.level}">${levelText}</span>
@@ -1379,7 +1498,7 @@ async function loadUserProfile() {
             </div>
           </div>
           <div class="profile-styles">
-            <span class="info-label">擅长舞种：</span>
+            <span class="info-label">擅长舞种 (带熟练度权重)：</span>
             ${styleTags}
           </div>
           ${currentUser.bio ? `<div class="profile-bio">${currentUser.bio}</div>` : ''}
@@ -1754,5 +1873,159 @@ function refreshNotifications() {
   const dropdown = document.getElementById('notificationDropdown');
   if (dropdown.classList.contains('active')) {
     loadNotifications();
+  }
+}
+
+function initEditProfileModal() {
+  document.querySelector('.close-edit-profile-modal').addEventListener('click', closeEditProfileModal);
+  
+  document.getElementById('editProfileModal').addEventListener('click', (e) => {
+    if (e.target.id === 'editProfileModal') closeEditProfileModal();
+  });
+  
+  document.getElementById('editProfileForm').addEventListener('submit', saveProfile);
+}
+
+function renderStyleWeightEditor() {
+  const container = document.getElementById('styleWeightEditor');
+  if (!container) return;
+  
+  const userWeights = getStyleWeightMapFrontend(currentUser ? currentUser.styles : []);
+  
+  container.innerHTML = ALL_DANCE_STYLES.map(styleName => {
+    const isChecked = styleName in userWeights;
+    const weight = userWeights[styleName] || 50;
+    
+    return `
+      <div class="style-item-row">
+        <label class="style-checkbox-label">
+          <input type="checkbox" class="style-weight-checkbox" data-style="${styleName}" ${isChecked ? 'checked' : ''}>
+          <span>${styleName} 风格</span>
+        </label>
+        <div class="weight-slider-container" data-style-container="${styleName}" style="${isChecked ? '' : 'display:none;'}">
+          <input type="range" min="0" max="100" value="${weight}" 
+                 class="style-weight-slider" data-style-slider="${styleName}">
+          <span class="weight-display" data-style-weight="${styleName}">${weight}%</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  container.querySelectorAll('.style-weight-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', (e) => {
+      const styleName = e.target.dataset.style;
+      const sliderContainer = container.querySelector(`[data-style-container="${styleName}"]`);
+      if (sliderContainer) {
+        sliderContainer.style.display = e.target.checked ? 'flex' : 'none';
+      }
+    });
+  });
+  
+  container.querySelectorAll('.style-weight-slider').forEach(slider => {
+    slider.addEventListener('input', (e) => {
+      const styleName = e.target.dataset.styleSlider;
+      const weightDisplay = container.querySelector(`[data-style-weight="${styleName}"]`);
+      if (weightDisplay) {
+        weightDisplay.textContent = `${e.target.value}%`;
+      }
+    });
+  });
+}
+
+function openEditProfileModal() {
+  if (!currentUser) {
+    showToast('请先选择身份', 'error');
+    return;
+  }
+  
+  document.getElementById('editName').value = currentUser.name || '';
+  document.getElementById('editDanceYears').value = currentUser.danceYears || 0;
+  document.getElementById('editRole').value = currentUser.role || 'leader';
+  document.getElementById('editLevel').value = currentUser.level || 'beginner';
+  document.getElementById('editCity').value = currentUser.city || '';
+  document.getElementById('editBio').value = currentUser.bio || '';
+  
+  renderStyleWeightEditor();
+  
+  document.getElementById('editProfileModal').classList.add('active');
+}
+
+function closeEditProfileModal() {
+  document.getElementById('editProfileModal').classList.remove('active');
+}
+
+async function saveProfile(e) {
+  e.preventDefault();
+  
+  if (!currentUser) {
+    showToast('请先选择身份', 'error');
+    return;
+  }
+  
+  const formData = new FormData(e.target);
+  const name = formData.get('name');
+  const danceYears = parseInt(formData.get('danceYears')) || 0;
+  const role = formData.get('role');
+  const level = formData.get('level');
+  const city = formData.get('city');
+  const bio = formData.get('bio');
+  
+  const editor = document.getElementById('styleWeightEditor');
+  const styles = [];
+  editor.querySelectorAll('.style-weight-checkbox').forEach(checkbox => {
+    if (checkbox.checked) {
+      const styleName = checkbox.dataset.style;
+      const slider = editor.querySelector(`[data-style-slider="${styleName}"]`);
+      const weight = slider ? parseInt(slider.value) : 50;
+      styles.push({ name: styleName, weight });
+    }
+  });
+  
+  if (styles.length === 0) {
+    showToast('请至少选择一个擅长舞种', 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/users/${currentUser.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        danceYears,
+        role,
+        level,
+        city,
+        bio,
+        styles
+      })
+    });
+    
+    if (res.ok) {
+      const updatedUser = await res.json();
+      currentUser = updatedUser;
+      
+      const userIndex = allUsers.findIndex(u => u.id === currentUser.id);
+      if (userIndex !== -1) {
+        allUsers[userIndex] = updatedUser;
+      }
+      
+      const select = document.getElementById('currentUserSelect');
+      const option = select.querySelector(`option[value="${currentUser.id}"]`);
+      if (option) {
+        option.textContent = currentUser.name;
+      }
+      
+      closeEditProfileModal();
+      showToast('资料更新成功！', 'success');
+      loadUserProfile();
+      loadPartners();
+    } else {
+      const data = await res.json();
+      showToast(data.error || '更新失败', 'error');
+    }
+  } catch (e) {
+    console.error('更新资料失败:', e);
+    showToast('更新失败', 'error');
   }
 }

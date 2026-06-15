@@ -330,6 +330,60 @@
     </div>
   </div>
 
+  <div id="editProfileModal" class="modal">
+    <div class="modal-content modal-edit-profile modal-large">
+      <span class="close-edit-profile-modal">&times;</span>
+      <h3>编辑个人资料</h3>
+      <form id="editProfileForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label>昵称</label>
+            <input type="text" name="name" id="editName" required>
+          </div>
+          <div class="form-group">
+            <label>舞龄 (年)</label>
+            <input type="number" name="danceYears" id="editDanceYears" min="0" max="50">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>角色</label>
+            <select name="role" id="editRole">
+              <option value="leader">引带 (Leader)</option>
+              <option value="follower">跟随 (Follower)</option>
+              <option value="both">双修 (Both)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>水平</label>
+            <select name="level" id="editLevel">
+              <option value="beginner">入门</option>
+              <option value="intermediate">中级</option>
+              <option value="advanced">高级</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>城市</label>
+            <input type="text" name="city" id="editCity">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>个人简介</label>
+          <textarea name="bio" id="editBio" rows="3" placeholder="简单介绍一下自己..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>擅长舞种及熟练度权重 (0-100%)</label>
+          <div id="styleWeightEditor" class="style-weight-editor">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeEditProfileModal()">取消</button>
+          <button type="submit" class="btn btn-primary">保存修改</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="toast" class="toast"></div>
 
   <script src="js/app.js?v=20260615"></script>

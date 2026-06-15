@@ -10,7 +10,10 @@ let {
   getFollowers, 
   getFollowing, 
   addFollow, 
-  removeFollow 
+  removeFollow,
+  normalizeStyles,
+  getStyleNames,
+  getStyleWeightMap
 } = db;
 
 router.get('/', (req, res) => {
@@ -19,7 +22,7 @@ router.get('/', (req, res) => {
   let filtered = [...users];
   
   if (style) {
-    filtered = filtered.filter(u => u.styles.includes(style));
+    filtered = filtered.filter(u => getStyleNames(u.styles).includes(style));
   }
   
   if (level) {
@@ -74,13 +77,15 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: '请填写必要信息' });
   }
   
+  const normalizedStyles = normalizeStyles(styles);
+  
   const newUser = {
     id: getNextUserId(),
     name,
     avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
     danceYears: danceYears || 0,
     role,
-    styles,
+    styles: normalizedStyles,
     level: level || 'beginner',
     bio: bio || '',
     city: city || '上海',
@@ -90,6 +95,69 @@ router.post('/', (req, res) => {
   users.push(newUser);
   res.status(201).json(newUser);
 });
+
+router.put('/:id', (req, res) => {
+  const userId = parseInt(req.params.id);
+  const userIndex = users.findIndex(u => u.id === userId);
+  
+  if (userIndex === -1) {
+    return res.status(404).json({ error: '用户不存在' });
+  }
+  
+  const user = users[userIndex];
+  const { name, danceYears, role, styles, level, bio, city } = req.body;
+  
+  if (name !== undefined) user.name = name;
+  if (danceYears !== undefined) user.danceYears = danceYears;
+  if (role !== undefined) user.role = role;
+  if (level !== undefined) user.level = level;
+  if (bio !== undefined) user.bio = bio;
+  if (city !== undefined) user.city = city;
+  if (styles !== undefined) user.styles = normalizeStyles(styles);
+  
+  res.json(user);
+});
+
+function calculateWeightedStyleMatch(currentStyles, candidateStyles) {
+  const currentWeights = getStyleWeightMap(currentStyles);
+  const candidateWeights = getStyleWeightMap(candidateStyles);
+  
+  const currentStyleNames = Object.keys(currentWeights);
+  const candidateStyleNames = Object.keys(candidateWeights);
+  
+  const commonStyles = currentStyleNames.filter(s => candidateStyleNames.includes(s));
+  
+  if (commonStyles.length === 0) {
+    return { score: 0, commonStyles: [], details: [] };
+  }
+  
+  let weightedSum = 0;
+  let details = [];
+  
+  commonStyles.forEach(styleName => {
+    const cw = currentWeights[styleName];
+    const pw = candidateWeights[styleName];
+    const minWeight = Math.min(cw, pw);
+    const maxWeight = Math.max(cw, pw);
+    const styleMatch = (minWeight / maxWeight) * 100;
+    weightedSum += styleMatch;
+    details.push({
+      style: styleName,
+      currentWeight: cw,
+      candidateWeight: pw,
+      matchScore: Math.round(styleMatch)
+    });
+  });
+  
+  const totalPossible = currentStyleNames.length * 100;
+  const finalScore = Math.round((weightedSum / totalPossible) * 100);
+  
+  return {
+    score: finalScore,
+    commonStyles,
+    details
+  };
+}
 
 router.get('/match/:userId', (req, res) => {
   const userId = parseInt(req.params.userId);
@@ -102,11 +170,12 @@ router.get('/match/:userId', (req, res) => {
   
   let candidates = users.filter(u => u.id !== userId);
   
+  const currentStyleNames = getStyleNames(currentUser.styles);
   if (style) {
-    candidates = candidates.filter(u => u.styles.includes(style));
+    candidates = candidates.filter(u => getStyleNames(u.styles).includes(style));
   } else {
     candidates = candidates.filter(u => 
-      u.styles.some(s => currentUser.styles.includes(s))
+      getStyleNames(u.styles).some(s => currentStyleNames.includes(s))
     );
   }
   
@@ -127,42 +196,67 @@ router.get('/match/:userId', (req, res) => {
   
   candidates = candidates.map(candidate => {
     let score = 0;
+    const matchBreakdown = {};
     
-    const commonStyles = candidate.styles.filter(s => currentUser.styles.includes(s));
-    score += commonStyles.length * 20;
+    const styleMatch = calculateWeightedStyleMatch(currentUser.styles, candidate.styles);
+    score += styleMatch.score * 0.5;
+    matchBreakdown.styleMatch = {
+      score: styleMatch.score,
+      weight: 50,
+      details: styleMatch.details
+    };
     
     const levelDiff = Math.abs(getLevelValue(candidate.level) - getLevelValue(currentUser.level));
-    score += (3 - levelDiff) * 15;
+    const levelScore = (3 - levelDiff) * 25;
+    score += levelScore;
+    matchBreakdown.levelMatch = {
+      score: levelScore,
+      weight: 25
+    };
     
+    let cityScore = 0;
     if (candidate.city === currentUser.city) {
-      score += 10;
+      cityScore = 20;
     }
+    score += cityScore;
+    matchBreakdown.cityMatch = {
+      score: cityScore,
+      weight: 20
+    };
     
+    let roleScore = 0;
     if (targetRole && candidate.role === targetRole) {
-      score += 15;
+      roleScore = 5;
     }
+    score += roleScore;
+    matchBreakdown.roleMatch = {
+      score: roleScore,
+      weight: 5
+    };
     
     const following = isFollowing(userId, candidate.id);
     const mutual = following && isFollowing(candidate.id, userId);
     
-    if (following) {
-      score += 50;
+    if (mutual) {
+      score += 10;
+      matchBreakdown.social = { score: 10, label: '互相关注' };
+    } else if (following) {
+      score += 5;
+      matchBreakdown.social = { score: 5, label: '已关注' };
     }
+    
+    const finalScore = Math.min(Math.round(score), 100);
     
     return { 
       ...candidate, 
-      matchScore: score,
+      matchScore: finalScore,
+      matchBreakdown,
       isFollowing: following,
       isMutualFollowing: mutual
     };
   });
   
-  candidates.sort((a, b) => {
-    if (b.isFollowing !== a.isFollowing) {
-      return b.isFollowing ? 1 : -1;
-    }
-    return b.matchScore - a.matchScore;
-  });
+  candidates.sort((a, b) => b.matchScore - a.matchScore);
   
   res.json({
     currentUser,
