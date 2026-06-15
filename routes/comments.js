@@ -65,7 +65,15 @@ router.get('/dance/:danceId', (req, res) => {
 router.post('/', (req, res) => {
   const { danceId, userId, content, parentId, replyToUserId } = req.body;
   
-  if (!danceId || !userId || !content || !content.trim()) {
+  if (!danceId) {
+    return res.status(400).json({ error: '舞会ID不能为空' });
+  }
+  
+  if (!userId) {
+    return res.status(400).json({ error: '用户ID不能为空' });
+  }
+  
+  if (!content || !content.trim()) {
     return res.status(400).json({ error: '评论内容不能为空' });
   }
   
