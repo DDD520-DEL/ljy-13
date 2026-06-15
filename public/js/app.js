@@ -52,6 +52,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initReviewModal();
   initNotifications();
   initEditProfileModal();
+  initEncyclopedia();
   await initCities();
   loadUsers();
   loadDances();
@@ -3492,3 +3493,208 @@ document.addEventListener('DOMContentLoaded', () => {
   initChatInput();
   initMessageToast();
 });
+
+const DANCE_ENCYCLOPEDIA = [
+  {
+    id: 'salsa',
+    name: 'Salsa 莎莎舞',
+    emoji: '💃',
+    origin: '古巴 / 波多黎各 / 纽约',
+    originFlag: '🇨🇺',
+    rhythm: '4/4拍，每拍跳8步（快-快-慢）',
+    difficulty: 3,
+    brief: 'Salsa是目前世界上最流行的拉丁舞之一，以其热情奔放的节奏和丰富的即兴变化著称。舞者通常在4/4拍的音乐中完成8个基本步伐，是社交舞蹈的经典之选。',
+    details: {
+      history: 'Salsa起源于20世纪60-70年代的纽约，融合了古巴Son、波多黎各Plena和其他加勒比音乐元素。"Salsa"这个词在西班牙语中意为"酱汁"，象征着这种舞蹈的火辣与热情。',
+      characteristics: [
+        '基本节奏为4/4拍，每小节跳8步（1,2,3和5,6,7）',
+        '第4拍和第8拍为停顿，形成独特的"快-快-慢"韵律',
+        '主要有Cuban风格（圆形走位）和LA/NY风格（直线走位）两大流派',
+        '包含丰富的旋转、托举和身体律动'
+      ],
+      music: '经典Salsa音乐以古巴Son为基础，常用乐器包括小号、长号、钢琴、贝斯、沙锤和康加鼓。代表艺人有Celia Cruz、Tito Puente、Marc Anthony等。',
+      tips: '初学者建议先掌握基本步伐和节奏，从Cuban风格入门较为容易。多听音乐培养节奏感是学好Salsa的关键。'
+    }
+  },
+  {
+    id: 'bachata',
+    name: 'Bachata 巴恰塔',
+    emoji: '💕',
+    origin: '多米尼加共和国',
+    originFlag: '🇩🇴',
+    rhythm: '4/4拍，节奏缓慢浪漫',
+    difficulty: 2,
+    brief: 'Bachata起源于多米尼加共和国，以其浪漫抒情的音乐和亲密的舞姿闻名。舞蹈节奏较慢，步伐简单易学，是近年来全球最受欢迎的社交舞之一。',
+    details: {
+      history: 'Bachata诞生于20世纪60年代的多米尼加乡村地区，最初被视为底层民众的音乐，曾受到社会排斥。经过几十年的发展，现代Bachata已成为国际化的舞蹈风格。',
+      characteristics: [
+        '4/4拍节奏，每拍都有舞步，突出第1,2,3,4拍',
+        '以臀部扭动和身体波浪为主要特色',
+        '舞伴间距离较近，舞姿亲密浪漫',
+        '主要分为传统Dominican风格和融合风格（Sensual/Modern）'
+      ],
+      music: 'Bachata音乐以吉他为主要乐器，情感丰富，歌词多讲述爱情故事。现代Bachata融合了R&B和流行元素，代表艺人有Prince Royce、Romeo Santos等。',
+      tips: '学习Bachata要注重身体连接和音乐感受力。初学者可以先从基本步伐和臀部律动开始，再逐步学习双人配合技巧。'
+    }
+  },
+  {
+    id: 'kizomba',
+    name: 'Kizomba 基宗巴',
+    emoji: '🌍',
+    origin: '安哥拉',
+    originFlag: '🇦🇴',
+    rhythm: '4/4拍，缓慢而富有节奏感',
+    difficulty: 2,
+    brief: 'Kizomba源自非洲安哥拉，被称为"非洲的Tango"。以其缓慢、性感、流畅的舞姿著称，强调舞伴之间的身体连接和引导跟随。',
+    details: {
+      history: 'Kizomba诞生于20世纪80年代的安哥拉，由传统的Semba舞蹈演变而来，融合了Zouk音乐元素。2000年后开始在欧洲流行，现已风靡全球。',
+      characteristics: [
+        '节奏缓慢，4/4拍，强调第1,4,7拍',
+        '舞步流畅连绵，没有停顿',
+        '极度注重身体连接（Body Connection）',
+        '包含大量的身体波浪、旋转和亲密动作',
+        'Urban Kiz是现代流行的分支风格'
+      ],
+      music: 'Kizomba音乐以葡萄牙语演唱为主，旋律优美深情。现代Kizomba融合了电子音乐元素，节奏更加明快。代表艺人有C4 Pedro、Big Nelo等。',
+      tips: 'Kizomba的核心是连接和感受。建议初学者先练习单人身体律动，再进入双人学习。找到一个好的舞伴或老师至关重要。'
+    }
+  },
+  {
+    id: 'chacha',
+    name: 'Cha-cha 恰恰恰',
+    emoji: '🎵',
+    origin: '古巴',
+    originFlag: '🇨🇺',
+    rhythm: '4/4拍，Cha-cha-cha节奏',
+    difficulty: 2,
+    brief: 'Cha-cha（恰恰恰）是古巴的经典拉丁舞，以其欢快活泼的"恰恰恰"节奏著称。舞步轻快俏皮，充满活力，是国际标准舞的比赛项目之一。',
+    details: {
+      history: 'Cha-cha于1950年代由古巴作曲家Enrique Jorrín发明，是从Mambo演变而来的舞蹈。因舞蹈中的特色步伐发出"cha-cha-cha"的声音而得名。',
+      characteristics: [
+        '4/4拍节奏，特色为"1,2,3,恰恰恰"（4&1）',
+        '舞步轻快活泼，膝盖保持弯曲',
+        '胯部随脚步自然摆动',
+        '分为社交风格和国标比赛风格两大类',
+        '适合表演和竞技'
+      ],
+      music: 'Cha-cha音乐节奏明快，以打击乐和铜管乐为主。经典曲目包括Tito Puente的作品，现代也有很多流行歌曲改编的Cha-cha版本。',
+      tips: 'Cha-cha的关键是掌握"恰恰恰"的节奏型。建议先用脚打出正确的节奏，再配合身体练习。注意保持膝盖放松和胯部律动。'
+    }
+  },
+  {
+    id: 'rumba',
+    name: 'Rumba 伦巴',
+    emoji: '🌹',
+    origin: '古巴',
+    originFlag: '🇨🇺',
+    rhythm: '4/4拍，节奏缓慢深情',
+    difficulty: 3,
+    brief: 'Rumba伦巴被称为"拉丁舞之魂"，以其浪漫、性感、富有表现力的舞姿著称。是国际标准舞中最富有情感的舞蹈，被誉为"爱情的舞蹈"。',
+    details: {
+      history: 'Rumba起源于19世纪的古巴，融合了非洲和西班牙舞蹈元素。最初分为Yambú、Guaguancó和Columbia三种民间风格，现代国标Rumba则是在其基础上演化而来。',
+      characteristics: [
+        '4/4拍，每小节走4步（慢-快-快）',
+        '第4拍重心延迟移动，形成独特的韵律感',
+        '胯部动作明显，呈"8"字形摆动',
+        '舞姿舒展优美，富有戏剧表现力',
+        '是国标舞五项之一'
+      ],
+      music: 'Rumba音乐节奏为4/4拍，每分钟约25-27小节。音乐风格浪漫抒情，常见乐器有吉他、邦戈鼓、沙锤等。',
+      tips: '学习Rumba需要特别注重音乐性和情感表达。胯部动作是Rumba的灵魂，建议从基础胯部练习开始，逐步提高身体协调性。'
+    }
+  },
+  {
+    id: 'merengue',
+    name: 'Merengue 梅伦格',
+    emoji: '🎉',
+    origin: '多米尼加共和国',
+    originFlag: '🇩🇴',
+    rhythm: '2/4拍，节奏明快简单',
+    difficulty: 1,
+    brief: 'Merengue是多米尼加共和国的国舞，以其简单欢快的节奏闻名。几乎每个人都能在几分钟内学会基本步伐，是拉丁派对上最受欢迎的舞蹈之一。',
+    details: {
+      history: 'Merengue起源于19世纪的多米尼加共和国，据说由非洲奴隶发明，他们因脚踝被锁链束缚而只能以小步跳舞。如今已成为多米尼加文化的象征。',
+      characteristics: [
+        '2/4拍节奏，每拍一步，简单易学',
+        '以左右踏步为基本步伐',
+        '胯部随脚步自然摆动',
+        '可加入旋转和花样变化',
+        '非常适合派对和集体舞'
+      ],
+      music: 'Merengue音乐节奏明快，以手风琴、萨克斯和鼓为主要乐器。代表艺人有Juan Luis Guerra、Elvis Crespo等。',
+      tips: 'Merengue是拉丁舞蹈中最容易入门的舞种。掌握基本左右踏步后，可以尝试加入手臂动作和简单旋转。享受音乐和派对氛围最重要！'
+    }
+  }
+];
+
+function renderDifficultyStars(difficulty) {
+  let stars = '';
+  for (let i = 1; i <= 5; i++) {
+    stars += `<span class="star ${i <= difficulty ? 'filled' : ''}">★</span>`;
+  }
+  return `<span class="difficulty-stars">${stars}</span>`;
+}
+
+function renderEncyclopediaCard(dance) {
+  return `
+    <div class="encyclopedia-card" data-id="${dance.id}">
+      <div class="encyclopedia-card-header ${dance.id}">
+        <div class="encyclopedia-emoji">${dance.emoji}</div>
+        <div class="encyclopedia-title-wrap">
+          <div class="encyclopedia-name">${dance.name}</div>
+          <div class="encyclopedia-origin">
+            <span>${dance.originFlag}</span>
+            <span>${dance.origin}</span>
+          </div>
+        </div>
+        <span class="encyclopedia-expand-icon">▼</span>
+      </div>
+      <div class="encyclopedia-card-body">
+        <div class="encyclopedia-meta">
+          <div class="encyclopedia-meta-item">
+            <span class="encyclopedia-meta-label">节奏</span>
+            <span>${dance.rhythm}</span>
+          </div>
+          <div class="encyclopedia-meta-item">
+            <span class="encyclopedia-meta-label">难度</span>
+            ${renderDifficultyStars(dance.difficulty)}
+          </div>
+        </div>
+        <p class="encyclopedia-brief">${dance.brief}</p>
+      </div>
+      <div class="encyclopedia-details">
+        <div class="encyclopedia-details-inner">
+          <h4>📖 历史渊源</h4>
+          <p>${dance.details.history}</p>
+          
+          <h4>✨ 舞蹈特点</h4>
+          <ul>
+            ${dance.details.characteristics.map(c => `<li>${c}</li>`).join('')}
+          </ul>
+          
+          <h4>🎶 音乐风格</h4>
+          <p>${dance.details.music}</p>
+          
+          <div class="encyclopedia-tips">
+            <div class="encyclopedia-tips-title">💡 学习建议</div>
+            <p>${dance.details.tips}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function initEncyclopedia() {
+  const grid = document.getElementById('encyclopediaGrid');
+  if (!grid) return;
+  
+  grid.innerHTML = DANCE_ENCYCLOPEDIA.map(renderEncyclopediaCard).join('');
+  
+  const cards = grid.querySelectorAll('.encyclopedia-card');
+  cards.forEach(card => {
+    card.addEventListener('click', () => {
+      card.classList.toggle('expanded');
+    });
+  });
+}
