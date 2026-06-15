@@ -130,6 +130,9 @@ function initNavigation() {
       if (view === 'profile') {
         loadUserProfile();
       }
+      if (view === 'messages') {
+        loadConversations();
+      }
     });
   });
 }
@@ -1260,6 +1263,16 @@ function renderPartners(users) {
       loadPartners();
     });
   });
+  
+  container.querySelectorAll('.message-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const userId = parseInt(btn.dataset.userId);
+      const userName = btn.dataset.userName;
+      const userAvatar = btn.dataset.userAvatar;
+      startConversationWithUser(userId, userName, userAvatar);
+    });
+  });
 }
 
 function createPartnerCard(user) {
@@ -1297,11 +1310,13 @@ function createPartnerCard(user) {
   }
   
   let followBtn = '';
+  let messageBtn = '';
   if (currentUser) {
     const isFollowing = user.isFollowing ? 'true' : 'false';
     const btnClass = user.isFollowing ? 'following' : 'follow';
     const btnText = user.isFollowing ? '已关注' : '+ 关注';
     followBtn = `<button class="follow-btn ${btnClass}" data-user-id="${user.id}" data-following="${isFollowing}">${btnText}</button>`;
+    messageBtn = `<button class="message-btn" data-user-id="${user.id}" data-user-name="${user.name}" data-user-avatar="${user.avatar}">💬 私信</button>`;
   }
   
   return `
@@ -1334,6 +1349,7 @@ function createPartnerCard(user) {
       ${matchBreakdownHtml}
       <div class="partner-card-actions">
         <button class="invite-btn" data-user-id="${user.id}">发起邀约</button>
+        ${messageBtn}
         ${followBtn}
       </div>
     </div>
@@ -2295,15 +2311,27 @@ async function loadUnreadCount() {
   if (!currentUser) {
     const badge = document.getElementById('notificationBadge');
     badge.style.display = 'none';
+    const msgNavBadge = document.getElementById('msgNavBadge');
+    if (msgNavBadge) msgNavBadge.style.display = 'none';
     return;
   }
   
   try {
-    const res = await fetch(`${API_BASE}/notifications/unread-count?userId=${currentUser.id}`);
-    const data = await res.json();
-    updateNotificationBadge(data.count);
+    const [notifRes, msgRes] = await Promise.all([
+      fetch(`${API_BASE}/notifications/unread-count?userId=${currentUser.id}`),
+      fetch(`${API_BASE}/messages/unread-count?userId=${currentUser.id}`)
+    ]);
+    const notifData = await notifRes.json();
+    const msgData = await msgRes.json();
+    
+    updateNotificationBadge(notifData.count);
+    updateMessageNavBadge(msgData.count);
+    
+    if (msgData.count > 0) {
+      showMessageToast(msgData.count);
+    }
   } catch (e) {
-    console.error('加载未读通知数量失败:', e);
+    console.error('加载未读数量失败:', e);
   }
 }
 
@@ -2311,6 +2339,17 @@ function updateNotificationBadge(count) {
   const badge = document.getElementById('notificationBadge');
   if (count > 0) {
     badge.style.display = 'flex';
+    badge.textContent = count > 99 ? '99+' : count;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function updateMessageNavBadge(count) {
+  const badge = document.getElementById('msgNavBadge');
+  if (!badge) return;
+  if (count > 0) {
+    badge.style.display = 'inline-flex';
     badge.textContent = count > 99 ? '99+' : count;
   } else {
     badge.style.display = 'none';
@@ -2966,3 +3005,330 @@ async function refreshComments(danceId) {
     bindCommentEvents(danceId);
   }
 }
+
+let currentConversationId = null;
+let currentChatUser = null;
+let messagePollingTimer = null;
+
+async function loadConversations() {
+  if (!currentUser) {
+    const container = document.getElementById('conversationList');
+    container.innerHTML = '<div style="text-align:center;color:#999;padding:40px;">请先选择身份查看私信</div>';
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/messages/conversations?userId=${currentUser.id}`);
+    const conversations = await res.json();
+    renderConversations(conversations);
+    startMessagePolling();
+  } catch (e) {
+    console.error('加载会话列表失败:', e);
+  }
+}
+
+function renderConversations(conversations) {
+  const container = document.getElementById('conversationList');
+
+  if (conversations.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">💌</div>
+        <p>暂无私信</p>
+        <p class="empty-hint">从舞伴列表中找人开始聊天吧！</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = conversations.map(conv => {
+    const timeStr = formatNotificationTime(conv.lastMessageTime);
+    const unreadBadge = conv.unreadCount > 0 
+      ? `<span class="conv-unread-badge">${conv.unreadCount > 99 ? '99+' : conv.unreadCount}</span>` 
+      : '';
+    const activeClass = currentConversationId === conv.id ? 'active' : '';
+    const lastMessageDisplay = conv.lastMessage || '暂无消息';
+
+    return `
+      <div class="conversation-item ${activeClass}" data-conversation-id="${conv.id}" data-other-user-id="${conv.otherUser ? conv.otherUser.id : ''}">
+        <div class="conv-avatar">
+          <img src="${conv.otherUser ? conv.otherUser.avatar : ''}" alt="">
+          ${unreadBadge}
+        </div>
+        <div class="conv-info">
+          <div class="conv-header">
+            <span class="conv-name">${conv.otherUser ? conv.otherUser.name : '未知用户'}</span>
+            <span class="conv-time">${timeStr}</span>
+          </div>
+          <div class="conv-last-message">${lastMessageDisplay}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.querySelectorAll('.conversation-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const convId = parseInt(item.dataset.conversationId);
+      const otherUserId = parseInt(item.dataset.otherUserId);
+      openConversation(convId, otherUserId);
+    });
+  });
+}
+
+async function openConversation(conversationId, otherUserId) {
+  if (!currentUser) return;
+
+  currentConversationId = conversationId;
+
+  const convRes = await fetch(`${API_BASE}/users/${otherUserId}`);
+  const otherUser = await convRes.json();
+  currentChatUser = otherUser;
+
+  document.getElementById('chatPlaceholder').style.display = 'none';
+  document.getElementById('chatWindow').style.display = 'flex';
+  document.querySelector('.messages-container').classList.add('chat-open');
+
+  renderChatHeader(otherUser);
+
+  await loadConversationMessages(conversationId);
+  await loadConversations();
+  await loadUnreadCount();
+}
+
+function renderChatHeader(user) {
+  const header = document.getElementById('chatHeader');
+  header.innerHTML = `
+    <div class="chat-header-left">
+      <button class="chat-back-btn" onclick="closeChatWindow()">←</button>
+      <img src="${user.avatar}" alt="${user.name}" class="chat-header-avatar">
+      <div class="chat-header-info">
+        <span class="chat-header-name">${user.name}</span>
+        <span class="chat-header-status">在线</span>
+      </div>
+    </div>
+    <div class="chat-header-actions">
+      <span class="chat-header-city">🏙️ ${user.city}</span>
+    </div>
+  `;
+}
+
+async function loadConversationMessages(conversationId) {
+  if (!currentUser) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/messages/conversations/${conversationId}/messages?userId=${currentUser.id}`);
+    const messages = await res.json();
+    renderChatMessages(messages);
+  } catch (e) {
+    console.error('加载消息失败:', e);
+  }
+}
+
+function renderChatMessages(messages) {
+  const container = document.getElementById('chatMessages');
+
+  if (messages.length === 0) {
+    container.innerHTML = `
+      <div class="no-messages">
+        <div class="no-messages-icon">💬</div>
+        <p>开始和TA打个招呼吧~</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = messages.map(msg => {
+    const isMine = msg.senderId === currentUser.id;
+    const timeStr = formatChatTime(msg.createdAt);
+    const msgClass = isMine ? 'chat-message mine' : 'chat-message other';
+    
+    if (isMine) {
+      return `
+        <div class="${msgClass}">
+          <div class="chat-bubble">
+            <div class="chat-bubble-content">${escapeHtml(msg.content)}</div>
+            <div class="chat-bubble-time">${timeStr}${msg.isRead ? ' ✓✓' : ' ✓'}</div>
+          </div>
+        </div>
+      `;
+    } else {
+      const sender = currentChatUser;
+      return `
+        <div class="${msgClass}">
+          <img src="${sender ? sender.avatar : ''}" alt="" class="chat-msg-avatar">
+          <div class="chat-bubble">
+            <div class="chat-bubble-content">${escapeHtml(msg.content)}</div>
+            <div class="chat-bubble-time">${timeStr}</div>
+          </div>
+        </div>
+      `;
+    }
+  }).join('');
+
+  container.scrollTop = container.scrollHeight;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function formatChatTime(createdAt) {
+  const date = new Date(createdAt);
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+function closeChatWindow() {
+  currentConversationId = null;
+  currentChatUser = null;
+  document.getElementById('chatWindow').style.display = 'none';
+  document.getElementById('chatPlaceholder').style.display = 'flex';
+  document.querySelector('.messages-container').classList.remove('chat-open');
+}
+
+function initChatInput() {
+  const sendBtn = document.getElementById('sendMsgBtn');
+  const input = document.getElementById('chatInput');
+
+  sendBtn.addEventListener('click', sendCurrentMessage);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendCurrentMessage();
+    }
+  });
+}
+
+async function sendCurrentMessage() {
+  const input = document.getElementById('chatInput');
+  const content = input.value.trim();
+
+  if (!content || !currentUser || !currentChatUser || !currentConversationId) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/messages/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        senderId: currentUser.id,
+        receiverId: currentChatUser.id,
+        content
+      })
+    });
+
+    if (res.ok) {
+      input.value = '';
+      await loadConversationMessages(currentConversationId);
+      await loadConversations();
+    } else {
+      const data = await res.json();
+      showToast(data.error || '发送失败', 'error');
+    }
+  } catch (e) {
+    console.error('发送消息失败:', e);
+    showToast('发送失败', 'error');
+  }
+}
+
+async function startConversationWithUser(otherUserId, userName, userAvatar) {
+  if (!currentUser) {
+    showToast('请先选择身份', 'error');
+    return;
+  }
+
+  if (otherUserId === currentUser.id) {
+    showToast('不能给自己发消息', 'error');
+    return;
+  }
+
+  try {
+    let convRes = await fetch(`${API_BASE}/messages/conversation-with/${otherUserId}?userId=${currentUser.id}`);
+    const convData = await convRes.json();
+
+    let conversationId = convData.conversationId;
+
+    if (!conversationId) {
+      const newConvRes = await fetch(`${API_BASE}/messages/conversation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user1Id: currentUser.id,
+          user2Id: otherUserId
+        })
+      });
+      const newConv = await newConvRes.json();
+      conversationId = newConv.id;
+    }
+
+    document.querySelector('.nav-btn[data-view="messages"]').click();
+
+    setTimeout(() => {
+      openConversation(conversationId, otherUserId);
+    }, 100);
+  } catch (e) {
+    console.error('发起对话失败:', e);
+    showToast('发起对话失败', 'error');
+  }
+}
+
+function showMessageToast(unreadCount) {
+  const bar = document.getElementById('messageToastBar');
+  const text = document.getElementById('messageToastText');
+  if (!bar || !text) return;
+  
+  text.textContent = unreadCount > 1 
+    ? `您有 ${unreadCount} 条未读消息` 
+    : '您有 1 条未读消息';
+  
+  bar.classList.add('show');
+}
+
+function hideMessageToast() {
+  const bar = document.getElementById('messageToastBar');
+  if (bar) bar.classList.remove('show');
+}
+
+function initMessageToast() {
+  const closeBtn = document.getElementById('messageToastClose');
+  const bar = document.getElementById('messageToastBar');
+  
+  if (closeBtn) {
+    closeBtn.addEventListener('click', hideMessageToast);
+  }
+  
+  if (bar) {
+    bar.addEventListener('click', (e) => {
+      if (e.target === closeBtn) return;
+      hideMessageToast();
+      document.querySelector('.nav-btn[data-view="messages"]').click();
+    });
+  }
+}
+
+function startMessagePolling() {
+  if (messagePollingTimer) {
+    clearInterval(messagePollingTimer);
+  }
+  
+  messagePollingTimer = setInterval(() => {
+    if (currentUser) {
+      loadUnreadCount();
+      if (currentConversationId) {
+        loadConversationMessages(currentConversationId);
+      }
+      if (document.getElementById('messages-view').classList.contains('active')) {
+        loadConversations();
+      }
+    }
+  }, 10000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initChatInput();
+  initMessageToast();
+});

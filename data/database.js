@@ -626,6 +626,102 @@ let favorites = [
   { id: 4, userId: 3, danceId: 6, createdAt: "2026-06-14T11:20:00Z" }
 ];
 
+let conversations = [
+  {
+    id: 1,
+    user1Id: 1,
+    user2Id: 2,
+    lastMessage: "好的，那我们舞会见！记得早点到哦~",
+    lastMessageTime: "2026-06-15T14:30:00Z",
+    user1Unread: 0,
+    user2Unread: 2
+  },
+  {
+    id: 2,
+    user1Id: 1,
+    user2Id: 3,
+    lastMessage: "NY风格的编舞我可以教你几个基础动作",
+    lastMessageTime: "2026-06-14T20:15:00Z",
+    user1Unread: 1,
+    user2Unread: 0
+  }
+];
+
+let messages = [
+  {
+    id: 1,
+    conversationId: 1,
+    senderId: 1,
+    receiverId: 2,
+    content: "你好婷婷，看你也喜欢Cuban风格，周五的舞会要不要一起跳几曲？",
+    createdAt: "2026-06-13T09:00:00Z",
+    isRead: true
+  },
+  {
+    id: 2,
+    conversationId: 1,
+    senderId: 2,
+    receiverId: 1,
+    content: "好呀小明！我正想找人一起练习呢，你周五几点到？",
+    createdAt: "2026-06-13T10:30:00Z",
+    isRead: true
+  },
+  {
+    id: 3,
+    conversationId: 1,
+    senderId: 1,
+    receiverId: 2,
+    content: "我大概7点半到，可以先在门口碰个面",
+    createdAt: "2026-06-13T11:00:00Z",
+    isRead: true
+  },
+  {
+    id: 4,
+    conversationId: 1,
+    senderId: 2,
+    receiverId: 1,
+    content: "没问题！我穿一件红色的连衣裙，很容易认的",
+    createdAt: "2026-06-14T16:20:00Z",
+    isRead: false
+  },
+  {
+    id: 5,
+    conversationId: 1,
+    senderId: 2,
+    receiverId: 1,
+    content: "好的，那我们舞会见！记得早点到哦~",
+    createdAt: "2026-06-15T14:30:00Z",
+    isRead: false
+  },
+  {
+    id: 6,
+    conversationId: 2,
+    senderId: 3,
+    receiverId: 1,
+    content: "小明你好！听说你也在学LA风格？",
+    createdAt: "2026-06-14T19:00:00Z",
+    isRead: true
+  },
+  {
+    id: 7,
+    conversationId: 2,
+    senderId: 1,
+    receiverId: 3,
+    content: "是啊大伟哥，刚学不久，感觉LA风格的动作好酷啊",
+    createdAt: "2026-06-14T19:30:00Z",
+    isRead: true
+  },
+  {
+    id: 8,
+    conversationId: 2,
+    senderId: 3,
+    receiverId: 1,
+    content: "NY风格的编舞我可以教你几个基础动作",
+    createdAt: "2026-06-14T20:15:00Z",
+    isRead: false
+  }
+];
+
 let nextDanceId = 17;
 let nextUserId = 11;
 let nextInvitationId = 3;
@@ -635,6 +731,8 @@ let nextNotificationId = 2;
 let nextRegistrationId = 8;
 let nextCommentId = 6;
 let nextFavoriteId = 5;
+let nextConversationId = 3;
+let nextMessageId = 9;
 
 function isFollowing(followerId, followingId) {
   return follows.some(f => f.followerId === followerId && f.followingId === followingId);
@@ -911,6 +1009,146 @@ function getFavoriteCount(danceId) {
   return favorites.filter(f => f.danceId === danceId).length;
 }
 
+function getConversationByUsers(userId1, userId2) {
+  return conversations.find(c =>
+    (c.user1Id === userId1 && c.user2Id === userId2) ||
+    (c.user1Id === userId2 && c.user2Id === userId1)
+  );
+}
+
+function getUserConversations(userId) {
+  const uid = parseInt(userId);
+  const userConvs = conversations.filter(c =>
+    c.user1Id === uid || c.user2Id === uid
+  );
+  return userConvs
+    .map(c => {
+      const otherUserId = c.user1Id === uid ? c.user2Id : c.user1Id;
+      const otherUser = users.find(u => u.id === otherUserId);
+      const unreadCount = c.user1Id === uid ? c.user1Unread : c.user2Unread;
+      return {
+        id: c.id,
+        otherUser: otherUser ? {
+          id: otherUser.id,
+          name: otherUser.name,
+          avatar: otherUser.avatar
+        } : null,
+        lastMessage: c.lastMessage,
+        lastMessageTime: c.lastMessageTime,
+        unreadCount
+      };
+    })
+    .sort((a, b) => new Date(b.lastMessageTime) - new Date(a.lastMessageTime));
+}
+
+function getConversationMessages(conversationId, userId) {
+  const convMessages = messages
+    .filter(m => m.conversationId === parseInt(conversationId))
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  
+  const uid = parseInt(userId);
+  const conversation = conversations.find(c => c.id === parseInt(conversationId));
+  
+  if (conversation) {
+    if (conversation.user1Id === uid) {
+      conversation.user1Unread = 0;
+    } else if (conversation.user2Id === uid) {
+      conversation.user2Unread = 0;
+    }
+    messages.forEach(m => {
+      if (m.conversationId === parseInt(conversationId) && m.receiverId === uid) {
+        m.isRead = true;
+      }
+    });
+  }
+  
+  return convMessages;
+}
+
+function sendMessage(senderId, receiverId, content) {
+  const sid = parseInt(senderId);
+  const rid = parseInt(receiverId);
+  
+  if (sid === rid) {
+    return null;
+  }
+  
+  let conversation = getConversationByUsers(sid, rid);
+  
+  if (!conversation) {
+    conversation = {
+      id: nextConversationId++,
+      user1Id: sid,
+      user2Id: rid,
+      lastMessage: content,
+      lastMessageTime: new Date().toISOString(),
+      user1Unread: 0,
+      user2Unread: 0
+    };
+    conversations.push(conversation);
+  } else {
+    conversation.lastMessage = content;
+    conversation.lastMessageTime = new Date().toISOString();
+  }
+  
+  const newMessage = {
+    id: nextMessageId++,
+    conversationId: conversation.id,
+    senderId: sid,
+    receiverId: rid,
+    content,
+    createdAt: new Date().toISOString(),
+    isRead: false
+  };
+  messages.push(newMessage);
+  
+  if (conversation.user1Id === rid) {
+    conversation.user1Unread++;
+  } else {
+    conversation.user2Unread++;
+  }
+  
+  return {
+    message: newMessage,
+    conversation
+  };
+}
+
+function getUnreadMessageCount(userId) {
+  const uid = parseInt(userId);
+  return conversations.reduce((count, c) => {
+    if (c.user1Id === uid) {
+      return count + c.user1Unread;
+    } else if (c.user2Id === uid) {
+      return count + c.user2Unread;
+    }
+    return count;
+  }, 0);
+}
+
+function getTotalUnreadCount(userId) {
+  const notificationUnread = getUnreadCount(userId);
+  const messageUnread = getUnreadMessageCount(userId);
+  return notificationUnread + messageUnread;
+}
+
+function createConversationIfNotExists(user1Id, user2Id) {
+  let conversation = getConversationByUsers(user1Id, user2Id);
+  if (!conversation) {
+    conversation = {
+      id: nextConversationId++,
+      user1Id: parseInt(user1Id),
+      user2Id: parseInt(user2Id),
+      lastMessage: null,
+      lastMessageTime: new Date().toISOString(),
+      user1Unread: 0,
+      user2Unread: 0
+    };
+    conversations.push(conversation);
+  }
+  return conversation;
+}
+
 module.exports = {
   SUPPORTED_CITIES,
   dances,
@@ -922,6 +1160,8 @@ module.exports = {
   danceRegistrations,
   comments,
   favorites,
+  conversations,
+  messages,
   getNextDanceId: () => nextDanceId++,
   getNextUserId: () => nextUserId++,
   getNextInvitationId: () => nextInvitationId++,
@@ -958,5 +1198,12 @@ module.exports = {
   getFavoritesByUser,
   addFavorite,
   removeFavorite,
-  getFavoriteCount
+  getFavoriteCount,
+  getConversationByUsers,
+  getUserConversations,
+  getConversationMessages,
+  sendMessage,
+  getUnreadMessageCount,
+  getTotalUnreadCount,
+  createConversationIfNotExists
 };

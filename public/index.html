@@ -22,6 +22,10 @@
         <button class="nav-btn active" data-view="calendar">舞会日历</button>
         <button class="nav-btn" data-view="map">附近地图</button>
         <button class="nav-btn" data-view="partners">舞伴匹配</button>
+        <button class="nav-btn" data-view="messages">
+          私信
+          <span class="msg-nav-badge" id="msgNavBadge" style="display:none;">0</span>
+        </button>
         <button class="nav-btn" data-view="publish">发布舞会</button>
         <button class="nav-btn" data-view="profile">个人中心</button>
       </nav>
@@ -246,6 +250,37 @@
         </form>
       </section>
 
+      <section id="messages-view" class="view">
+        <div class="view-header">
+          <h2>💬 私信中心</h2>
+        </div>
+        <div class="messages-container">
+          <div class="messages-sidebar">
+            <div class="messages-sidebar-header">
+              <h3>最近联系人</h3>
+            </div>
+            <div id="conversationList" class="conversation-list">
+              <div style="text-align:center;color:#999;padding:40px;">请先选择身份查看私信</div>
+            </div>
+          </div>
+          <div class="messages-main">
+            <div id="chatPlaceholder" class="chat-placeholder">
+              <div class="chat-placeholder-icon">💬</div>
+              <h3>选择一个对话开始聊天</h3>
+              <p>或者从舞伴列表中找到感兴趣的人，点击「发私信」按钮开始新的对话</p>
+            </div>
+            <div id="chatWindow" class="chat-window" style="display:none;">
+              <div class="chat-header" id="chatHeader"></div>
+              <div class="chat-messages" id="chatMessages"></div>
+              <div class="chat-input-area">
+                <textarea id="chatInput" class="chat-input" placeholder="输入消息，按 Enter 发送，Shift+Enter 换行..." rows="2"></textarea>
+                <button id="sendMsgBtn" class="btn btn-primary send-msg-btn">发送</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="profile-view" class="view">
         <div class="view-header">
           <h2>👤 个人中心</h2>
@@ -412,6 +447,14 @@
   </div>
 
   <div id="toast" class="toast"></div>
+
+  <div id="messageToastBar" class="message-toast-bar">
+    <div class="message-toast-content">
+      <span class="message-toast-icon">💬</span>
+      <span class="message-toast-text" id="messageToastText">您有新消息</span>
+    </div>
+    <button class="message-toast-close" id="messageToastClose">×</button>
+  </div>
 
   <script src="js/app.js?v=20260615"></script>
 </body>
