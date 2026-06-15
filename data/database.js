@@ -619,6 +619,13 @@ let comments = [
   }
 ];
 
+let favorites = [
+  { id: 1, userId: 1, danceId: 1, createdAt: "2026-06-12T10:00:00Z" },
+  { id: 2, userId: 1, danceId: 5, createdAt: "2026-06-13T15:30:00Z" },
+  { id: 3, userId: 2, danceId: 1, createdAt: "2026-06-14T09:00:00Z" },
+  { id: 4, userId: 3, danceId: 6, createdAt: "2026-06-14T11:20:00Z" }
+];
+
 let nextDanceId = 17;
 let nextUserId = 11;
 let nextInvitationId = 3;
@@ -627,6 +634,7 @@ let nextFollowId = 5;
 let nextNotificationId = 2;
 let nextRegistrationId = 8;
 let nextCommentId = 6;
+let nextFavoriteId = 5;
 
 function isFollowing(followerId, followingId) {
   return follows.some(f => f.followerId === followerId && f.followingId === followingId);
@@ -860,6 +868,49 @@ function likeComment(commentId) {
   return null;
 }
 
+function isFavorited(userId, danceId) {
+  return favorites.some(f => f.userId === userId && f.danceId === danceId);
+}
+
+function getFavoritesByUser(userId) {
+  const userFavorites = favorites.filter(f => f.userId === userId);
+  return userFavorites.map(f => {
+    const dance = dances.find(d => d.id === f.danceId);
+    return dance ? { ...dance, favoritedAt: f.createdAt } : null;
+  }).filter(Boolean);
+}
+
+function addFavorite(userId, danceId) {
+  if (isFavorited(userId, danceId)) {
+    return null;
+  }
+  const dance = dances.find(d => d.id === danceId);
+  if (!dance) {
+    return null;
+  }
+  const newFavorite = {
+    id: nextFavoriteId++,
+    userId,
+    danceId,
+    createdAt: new Date().toISOString()
+  };
+  favorites.push(newFavorite);
+  return newFavorite;
+}
+
+function removeFavorite(userId, danceId) {
+  const index = favorites.findIndex(f => f.userId === userId && f.danceId === danceId);
+  if (index === -1) {
+    return false;
+  }
+  favorites.splice(index, 1);
+  return true;
+}
+
+function getFavoriteCount(danceId) {
+  return favorites.filter(f => f.danceId === danceId).length;
+}
+
 module.exports = {
   SUPPORTED_CITIES,
   dances,
@@ -870,6 +921,7 @@ module.exports = {
   notifications,
   danceRegistrations,
   comments,
+  favorites,
   getNextDanceId: () => nextDanceId++,
   getNextUserId: () => nextUserId++,
   getNextInvitationId: () => nextInvitationId++,
@@ -901,5 +953,10 @@ module.exports = {
   getCommentById,
   addComment,
   deleteComment,
-  likeComment
+  likeComment,
+  isFavorited,
+  getFavoritesByUser,
+  addFavorite,
+  removeFavorite,
+  getFavoriteCount
 };

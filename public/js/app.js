@@ -278,6 +278,7 @@ async function loadDances() {
   try {
     const params = new URLSearchParams({ sort: 'date', limit: 100 });
     if (currentCity) params.set('city', currentCity);
+    if (currentUser) params.set('userId', currentUser.id);
     const res = await fetch(`${API_BASE}/dances?${params.toString()}`);
     const data = await res.json();
     allDances = data.data;
@@ -361,6 +362,11 @@ function createDanceCard(dance) {
     attendeeDisplay = `👥 ${dance.attendeeCount}/${dance.maxAttendees}`;
   }
   
+  const favoriteCount = dance.favoriteCount || 0;
+  const isFavorited = dance.isFavorited || false;
+  const favoriteClass = isFavorited ? 'favorited' : '';
+  const favoriteIcon = isFavorited ? '❤️' : '🤍';
+  
   return `
     <div class="dance-card" data-id="${dance.id}">
       <div class="dance-card-header">
@@ -370,7 +376,7 @@ function createDanceCard(dance) {
       <div class="dance-card-body">
         <div class="dance-card-meta">
           <div>📍 ${dance.venue}</div>
-          <div>�️ ${dance.city} · � ${dance.address}</div>
+          <div>🏙️ ${dance.city} · 📍 ${dance.address}</div>
         </div>
         <div class="dance-styles">${styleTags}</div>
       </div>
@@ -383,6 +389,16 @@ function createDanceCard(dance) {
           <span>👁 ${dance.viewCount}</span>
           <span>${attendeeDisplay}</span>
         </div>
+      </div>
+      <div class="dance-card-actions">
+        <button class="card-action-btn favorite-btn ${favoriteClass}" data-dance-id="${dance.id}" data-favorited="${isFavorited}" onclick="event.stopPropagation(); toggleFavorite(${dance.id}, this)">
+          <span class="action-icon">${favoriteIcon}</span>
+          <span class="action-count">${favoriteCount}</span>
+        </button>
+        <button class="card-action-btn share-btn" data-dance-id="${dance.id}" onclick="event.stopPropagation(); openShareModal(${dance.id})">
+          <span class="action-icon">📤</span>
+          <span class="action-text">分享</span>
+        </button>
       </div>
     </div>
   `;
@@ -570,6 +586,11 @@ async function showDanceDetail(id) {
     
     const commentsSectionHtml = renderCommentsSection(dance.id, commentData);
     
+    const isFavorited = dance.isFavorited || false;
+    const favoriteCount = dance.favoriteCount || 0;
+    const favoriteBtnText = isFavorited ? '❤️ 已收藏' : '🤍 收藏';
+    const favoriteBtnClass = isFavorited ? 'btn-favorited' : '';
+    
     document.getElementById('modalBody').innerHTML = `
       <div class="modal-dance-header">
         <h2>${dance.title}</h2>
@@ -582,7 +603,7 @@ async function showDanceDetail(id) {
         <div><span class="info-label">主办方:</span> ${dance.organizer}</div>
         <div><span class="info-label">票价:</span> ¥${dance.price}</div>
         <div><span class="info-label">舞种:</span> ${styleTags}</div>
-        <div><span class="info-label">热度:</span> 👁 ${dance.viewCount} 次浏览 | 👥 ${dance.attendeeCount}${dance.maxAttendees ? `/${dance.maxAttendees}` : ''} 人参加</div>
+        <div><span class="info-label">热度:</span> 👁 ${dance.viewCount} 次浏览 | 👥 ${dance.attendeeCount}${dance.maxAttendees ? `/${dance.maxAttendees}` : ''} 人参加 | ❤️ ${favoriteCount} 人收藏</div>
       </div>
       ${registrationInfoHtml}
       <div class="modal-dance-desc">
@@ -595,6 +616,8 @@ async function showDanceDetail(id) {
       ${commentsSectionHtml}
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
+        <button class="btn btn-secondary ${favoriteBtnClass}" id="detailFavoriteBtn" data-favorited="${isFavorited}" onclick="toggleFavorite(${dance.id}, this)">${favoriteBtnText} (${favoriteCount})</button>
+        <button class="btn btn-secondary" onclick="openShareModal(${dance.id})">📤 分享</button>
         ${reviewButtonHtml}
         ${registerButtonHtml}
         <button class="btn btn-primary" onclick="inviteToDance(${dance.id})">邀约舞伴</button>
@@ -675,6 +698,287 @@ async function cancelRegistration(danceId) {
   }
 }
 
+async function toggleFavorite(danceId, btnElement) {
+  if (!currentUser) {
+    showToast('请先选择身份', 'error');
+    return;
+  }
+  
+  const isFavorited = btnElement.dataset.favorited === 'true';
+  
+  try {
+    const method = isFavorited ? 'DELETE' : 'POST';
+    const res = await fetch(`${API_BASE}/dances/${danceId}/favorite`, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id })
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      showToast(data.message || (isFavorited ? '已取消收藏' : '收藏成功'), 'success');
+      
+      if (btnElement.classList.contains('card-action-btn')) {
+        const newFavorited = !isFavorited;
+        btnElement.dataset.favorited = newFavorited;
+        btnElement.classList.toggle('favorited', newFavorited);
+        const iconEl = btnElement.querySelector('.action-icon');
+        const countEl = btnElement.querySelector('.action-count');
+        if (iconEl) iconEl.textContent = newFavorited ? '❤️' : '🤍';
+        if (countEl) countEl.textContent = data.favoriteCount;
+      } else if (btnElement.id === 'detailFavoriteBtn') {
+        const newFavorited = !isFavorited;
+        btnElement.textContent = newFavorited ? `❤️ 已收藏 (${data.favoriteCount})` : `🤍 收藏 (${data.favoriteCount})`;
+        btnElement.classList.toggle('btn-favorited', newFavorited);
+        btnElement.onclick = () => toggleFavorite(danceId, btnElement);
+        btnElement.dataset.favorited = newFavorited;
+      }
+      
+      const danceCard = document.querySelector(`.dance-card[data-id="${danceId}"]`);
+      if (danceCard) {
+        const cardFavoriteBtn = danceCard.querySelector('.favorite-btn');
+        if (cardFavoriteBtn && cardFavoriteBtn !== btnElement) {
+          const newFavorited = !isFavorited;
+          cardFavoriteBtn.dataset.favorited = newFavorited;
+          cardFavoriteBtn.classList.toggle('favorited', newFavorited);
+          const iconEl = cardFavoriteBtn.querySelector('.action-icon');
+          const countEl = cardFavoriteBtn.querySelector('.action-count');
+          if (iconEl) iconEl.textContent = newFavorited ? '❤️' : '🤍';
+          if (countEl) countEl.textContent = data.favoriteCount;
+        }
+      }
+      
+      const danceInList = allDances.find(d => d.id === danceId);
+      if (danceInList) {
+        danceInList.isFavorited = !isFavorited;
+        danceInList.favoriteCount = data.favoriteCount;
+      }
+      
+      if (document.getElementById('profile-view').classList.contains('active')) {
+        loadUserProfile();
+      }
+    } else {
+      const data = await res.json();
+      showToast(data.error || '操作失败', 'error');
+    }
+  } catch (e) {
+    console.error('收藏操作失败:', e);
+    showToast('操作失败', 'error');
+  }
+}
+
+async function loadUserFavorites() {
+  if (!currentUser) return [];
+  try {
+    const res = await fetch(`${API_BASE}/dances/user/${currentUser.id}/favorites`);
+    return await res.json();
+  } catch (e) {
+    console.error('加载收藏列表失败:', e);
+    return [];
+  }
+}
+
+let currentShareDance = null;
+
+async function openShareModal(danceId) {
+  try {
+    const res = await fetch(`${API_BASE}/dances/${danceId}`);
+    const dance = await res.json();
+    currentShareDance = dance;
+    
+    const dateObj = new Date(dance.date);
+    const dateStr = `${dateObj.getFullYear()}年${dateObj.getMonth() + 1}月${dateObj.getDate()}日`;
+    const weekDay = ['周日','周一','周二','周三','周四','周五','周六'][dateObj.getDay()];
+    
+    document.getElementById('shareDanceInfo').innerHTML = `
+      <div class="share-info-title">${dance.title}</div>
+      <div class="share-info-meta">📅 ${dateStr} ${weekDay} ${dance.startTime} - ${dance.endTime}</div>
+      <div class="share-info-meta">📍 ${dance.venue} · ${dance.city}</div>
+    `;
+    
+    generateShareCard(dance);
+    
+    document.getElementById('shareModal').classList.add('active');
+  } catch (e) {
+    console.error('加载分享信息失败:', e);
+    showToast('加载失败', 'error');
+  }
+}
+
+function closeShareModal() {
+  document.getElementById('shareModal').classList.remove('active');
+  currentShareDance = null;
+}
+
+function generateShareCard(dance) {
+  const canvas = document.getElementById('shareCanvas');
+  const ctx = canvas.getContext('2d');
+  
+  const width = canvas.width;
+  const height = canvas.height;
+  
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, '#667eea');
+  gradient.addColorStop(1, '#764ba2');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+  
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+  ctx.beginPath();
+  ctx.roundRect(20, 20, width - 40, height - 40, 16);
+  ctx.fill();
+  
+  ctx.fillStyle = '#667eea';
+  ctx.beginPath();
+  ctx.roundRect(20, 20, width - 40, 80, 16);
+  ctx.fill();
+  
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('💃 莎莎舞舞会', width / 2, 55);
+  ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.fillText('Salsa Dance Party', width / 2, 78);
+  
+  const cardGradient = ctx.createLinearGradient(0, 120, 0, 180);
+  cardGradient.addColorStop(0, '#ffecd2');
+  cardGradient.addColorStop(1, '#fcb69f');
+  ctx.fillStyle = cardGradient;
+  ctx.beginPath();
+  ctx.roundRect(40, 120, width - 80, 80, 12);
+  ctx.fill();
+  
+  ctx.fillStyle = '#333';
+  ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.textAlign = 'left';
+  
+  const titleX = 60;
+  const titleY = 155;
+  const maxTitleWidth = width - 120;
+  let displayTitle = dance.title;
+  if (ctx.measureText(displayTitle).width > maxTitleWidth) {
+    while (ctx.measureText(displayTitle + '...').width > maxTitleWidth && displayTitle.length > 0) {
+      displayTitle = displayTitle.slice(0, -1);
+    }
+    displayTitle += '...';
+  }
+  ctx.fillText(displayTitle, titleX, titleY);
+  
+  ctx.font = '13px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.fillStyle = '#666';
+  ctx.fillText(`${dance.city} · ${dance.venue}`, titleX, 180);
+  
+  const dateObj = new Date(dance.date);
+  const weekDay = ['周日','周一','周二','周三','周四','周五','周六'][dateObj.getDay()];
+  const dateStr = `${dateObj.getFullYear()}年${dateObj.getMonth() + 1}月${dateObj.getDate()}日`;
+  
+  ctx.fillStyle = '#667eea';
+  ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.fillText('📅 活动时间', 60, 240);
+  
+  ctx.fillStyle = '#333';
+  ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.fillText(`${dateStr} ${weekDay}`, 60, 265);
+  ctx.fillText(`${dance.startTime} - ${dance.endTime}`, 60, 288);
+  
+  ctx.fillStyle = '#667eea';
+  ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.fillText('📍 活动地点', 60, 330);
+  
+  ctx.fillStyle = '#333';
+  ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
+  
+  const addressX = 60;
+  const addressY = 355;
+  const maxAddressWidth = width - 120;
+  let displayVenue = dance.venue;
+  if (ctx.measureText(displayVenue).width > maxAddressWidth) {
+    while (ctx.measureText(displayVenue + '...').width > maxAddressWidth && displayVenue.length > 0) {
+      displayVenue = displayVenue.slice(0, -1);
+    }
+    displayVenue += '...';
+  }
+  ctx.fillText(displayVenue, addressX, addressY);
+  
+  let displayAddress = dance.address;
+  if (ctx.measureText(displayAddress).width > maxAddressWidth) {
+    while (ctx.measureText(displayAddress + '...').width > maxAddressWidth && displayAddress.length > 0) {
+      displayAddress = displayAddress.slice(0, -1);
+    }
+    displayAddress += '...';
+  }
+  ctx.fillStyle = '#666';
+  ctx.fillText(displayAddress, addressX, 378);
+  
+  ctx.fillStyle = '#667eea';
+  ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.fillText('🎵 舞种风格', 60, 420);
+  
+  ctx.font = '13px -apple-system, BlinkMacSystemFont, sans-serif';
+  const styleColors = {
+    'Cuban': '#ff6b6b',
+    'LA': '#4ecdc4',
+    'NY': '#45b7d1',
+    'Bachata': '#96ceb4'
+  };
+  
+  let styleX = 60;
+  const styleY = 448;
+  dance.styles.forEach((style, index) => {
+    const color = styleColors[style] || '#667eea';
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    const textWidth = ctx.measureText(style).width + 20;
+    ctx.roundRect(styleX, styleY - 18, textWidth, 26, 13);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillText(style, styleX + 10, styleY);
+    styleX += textWidth + 10;
+  });
+  
+  ctx.fillStyle = '#f8f9fa';
+  ctx.beginPath();
+  ctx.roundRect(40, 480, width - 80, 60, 10);
+  ctx.fill();
+  
+  ctx.fillStyle = '#667eea';
+  ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('💰 票价', 60, 505);
+  ctx.fillStyle = '#e74c3c';
+  ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(`¥${dance.price}`, width - 60, 510);
+  ctx.fillStyle = '#999';
+  ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.fillText('/人', width - 30, 510);
+  
+  ctx.fillStyle = 'rgba(102, 126, 234, 0.1)';
+  ctx.beginPath();
+  ctx.roundRect(40, height - 80, width - 80, 40, 8);
+  ctx.fill();
+  
+  ctx.fillStyle = '#667eea';
+  ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('👁 浏览 ' + dance.viewCount + ' 次   |   👥 ' + dance.attendeeCount + ' 人参加', width / 2, height - 55);
+}
+
+function downloadShareCard() {
+  if (!currentShareDance) {
+    showToast('请先选择舞会', 'error');
+    return;
+  }
+  
+  const canvas = document.getElementById('shareCanvas');
+  const link = document.createElement('a');
+  link.download = `${currentShareDance.title}_分享卡片.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  
+  showToast('图片已保存！', 'success');
+}
+
 function inviteToDance(danceId) {
   if (!currentUser) {
     showToast('请先选择身份', 'error');
@@ -715,17 +1019,17 @@ async function loadUsers() {
           if (citySelect && citySelect.value !== currentUser.city) {
             citySelect.value = currentUser.city;
             currentCity = currentUser.city;
-            loadDances().then(() => {
-              loadHotRanking();
-              renderMapMarkers();
-              if (document.getElementById('map-view').classList.contains('active')) {
-                loadNearbyDances();
-              }
-            });
             const publishCitySelect = document.getElementById('publishCitySelect');
             if (publishCitySelect) publishCitySelect.value = currentCity;
           }
         }
+        loadDances().then(() => {
+          loadHotRanking();
+          renderMapMarkers();
+          if (document.getElementById('map-view').classList.contains('active')) {
+            loadNearbyDances();
+          }
+        });
         populatePartnerDanceSelect();
         loadPartners();
         loadUnreadCount();
@@ -734,6 +1038,13 @@ async function loadUsers() {
         }
       } else {
         currentUser = null;
+        loadDances().then(() => {
+          loadHotRanking();
+          renderMapMarkers();
+          if (document.getElementById('map-view').classList.contains('active')) {
+            loadNearbyDances();
+          }
+        });
         populatePartnerDanceSelect();
         loadPartners();
         loadUnreadCount();
@@ -1208,6 +1519,7 @@ function initPublishForm() {
 function initModals() {
   document.querySelector('.close-modal').addEventListener('click', closeModal);
   document.querySelector('.close-invite-modal').addEventListener('click', closeInviteModal);
+  document.querySelector('.close-share-modal').addEventListener('click', closeShareModal);
   
   document.getElementById('danceModal').addEventListener('click', (e) => {
     if (e.target.id === 'danceModal') closeModal();
@@ -1215,6 +1527,10 @@ function initModals() {
   
   document.getElementById('inviteModal').addEventListener('click', (e) => {
     if (e.target.id === 'inviteModal') closeInviteModal();
+  });
+  
+  document.getElementById('shareModal').addEventListener('click', (e) => {
+    if (e.target.id === 'shareModal') closeShareModal();
   });
   
   document.getElementById('inviteForm').addEventListener('submit', sendInvitation);
@@ -1495,14 +1811,16 @@ async function loadUserProfile() {
   }
   
   try {
-    const [userRes, reviewsRes] = await Promise.all([
+    const [userRes, reviewsRes, favoritesRes] = await Promise.all([
       fetch(`${API_BASE}/users/${currentUser.id}?currentUserId=${currentUser.id}`),
-      fetch(`${API_BASE}/reviews?userId=${currentUser.id}`)
+      fetch(`${API_BASE}/reviews?userId=${currentUser.id}`),
+      loadUserFavorites()
     ]);
     
     const userData = await userRes.json();
     currentUser = { ...currentUser, ...userData };
     const reviews = await reviewsRes.json();
+    const favorites = favoritesRes;
     
     const followerCount = userData.followerCount || 0;
     const followingCount = userData.followingCount || 0;
@@ -1594,6 +1912,10 @@ async function loadUserProfile() {
               <span class="stat-label">评价</span>
             </div>
             <div class="profile-stat">
+              <span class="stat-value">${favorites.length}</span>
+              <span class="stat-label">收藏</span>
+            </div>
+            <div class="profile-stat">
               <span class="stat-value">${currentUser.city}</span>
               <span class="stat-label">城市</span>
             </div>
@@ -1613,7 +1935,15 @@ async function loadUserProfile() {
         </div>
         <div id="followListContent"></div>
       </div>
-      ${reviewsHtml}
+      
+      <div class="profile-activity-section">
+        <h3>📋 我的活动</h3>
+        <div class="activity-tabs">
+          <button class="activity-tab active" data-tab="favorites">我的收藏 (${favorites.length})</button>
+          <button class="activity-tab" data-tab="reviews">我的评价 (${reviews.length})</button>
+        </div>
+        <div id="activityListContent"></div>
+      </div>
     `;
     
     document.querySelectorAll('.follow-tab').forEach(tab => {
@@ -1623,6 +1953,14 @@ async function loadUserProfile() {
     });
     
     switchFollowTab(currentUser.id, 'following');
+    
+    document.querySelectorAll('.activity-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        switchActivityTab(tab.dataset.tab, favorites, reviews);
+      });
+    });
+    
+    switchActivityTab('favorites', favorites, reviews);
     
     container.querySelectorAll('.profile-review-item').forEach(item => {
       item.addEventListener('click', () => {
@@ -1785,6 +2123,133 @@ async function switchFollowTab(userId, tabType) {
       }
     });
   });
+}
+
+function switchActivityTab(tabType, favorites, reviews) {
+  const tabs = document.querySelectorAll('.activity-tab');
+  tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabType));
+  
+  const container = document.getElementById('activityListContent');
+  if (!container) return;
+  
+  if (tabType === 'favorites') {
+    container.innerHTML = renderFavoritesList(favorites);
+  } else {
+    container.innerHTML = renderReviewsList(reviews);
+  }
+  
+  container.querySelectorAll('.favorite-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const danceId = parseInt(item.dataset.danceId);
+      document.querySelector('.nav-btn[data-view="calendar"]').click();
+      showDanceDetail(danceId);
+    });
+  });
+  
+  container.querySelectorAll('.profile-review-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const danceId = parseInt(item.dataset.danceId);
+      document.querySelector('.nav-btn[data-view="calendar"]').click();
+      showDanceDetail(danceId);
+    });
+  });
+  
+  container.querySelectorAll('.unfavorite-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const danceId = parseInt(btn.dataset.danceId);
+      await toggleFavorite(danceId, btn);
+    });
+  });
+}
+
+function renderFavoritesList(favorites) {
+  if (favorites.length === 0) {
+    return `
+      <div class="empty-state">
+        <div class="empty-icon">❤️</div>
+        <p>还没有收藏任何舞会</p>
+        <p class="empty-hint">看到感兴趣的舞会点击收藏按钮吧</p>
+      </div>
+    `;
+  }
+  
+  return `
+    <div class="favorites-list">
+      ${favorites.map(dance => {
+        const dateObj = new Date(dance.date);
+        const dateStr = `${dateObj.getMonth() + 1}月${dateObj.getDate()}日`;
+        const weekDay = ['周日','周一','周二','周三','周四','周五','周六'][dateObj.getDay()];
+        const styleTags = dance.styles.map(s => 
+          `<span class="style-tag style-${s.toLowerCase()}">${s}</span>`
+        ).join('');
+        
+        return `
+          <div class="favorite-item" data-dance-id="${dance.id}">
+            <div class="favorite-item-header">
+              <h4>${dance.title}</h4>
+              <button class="unfavorite-btn" data-dance-id="${dance.id}" data-favorited="true">
+                ❤️ 取消收藏
+              </button>
+            </div>
+            <div class="favorite-item-meta">
+              <span>📅 ${dateStr} ${weekDay} ${dance.startTime} - ${dance.endTime}</span>
+              <span>📍 ${dance.venue}</span>
+              <span>💰 ¥${dance.price}</span>
+            </div>
+            <div class="favorite-item-styles">${styleTags}</div>
+            <div class="favorite-item-footer">
+              <span>👁 ${dance.viewCount} 浏览</span>
+              <span>👥 ${dance.attendeeCount} 人参加</span>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderReviewsList(reviews) {
+  if (reviews.length === 0) {
+    return `
+      <div class="empty-state">
+        <div class="empty-icon">💭</div>
+        <p>还没有写过评价</p>
+        <p class="empty-hint">参加完舞会后记得来写评价哦</p>
+      </div>
+    `;
+  }
+  
+  return `
+    <div class="profile-reviews-list">
+      ${reviews.map(review => `
+        <div class="profile-review-item" data-dance-id="${review.danceId}">
+          <div class="profile-review-header">
+            <div class="profile-review-dance">
+              <h4>${review.dance.title}</h4>
+              <span class="profile-review-meta">${review.dance.date} | ${review.dance.venue}</span>
+            </div>
+            <div class="profile-review-date">${formatDate(new Date(review.createdAt))}</div>
+          </div>
+          <div class="profile-review-ratings">
+            <div class="review-rating-item">
+              <span>场地</span>
+              ${renderStars(review.venueRating)}
+            </div>
+            <div class="review-rating-item">
+              <span>音乐</span>
+              ${renderStars(review.musicRating)}
+            </div>
+            <div class="review-rating-item">
+              <span>组织</span>
+              ${renderStars(review.organizationRating)}
+            </div>
+          </div>
+          ${review.comment ? `<div class="profile-review-comment">${review.comment}</div>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 function showToast(message, type = 'success') {

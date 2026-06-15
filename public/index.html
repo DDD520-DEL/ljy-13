@@ -395,6 +395,22 @@
     </div>
   </div>
 
+  <div id="shareModal" class="modal">
+    <div class="modal-content modal-share">
+      <span class="close-share-modal">&times;</span>
+      <h3>分享舞会</h3>
+      <div id="shareDanceInfo" class="share-dance-info"></div>
+      <div class="share-card-container">
+        <canvas id="shareCanvas" width="400" height="560"></canvas>
+      </div>
+      <div class="share-actions">
+        <button class="btn btn-secondary" onclick="closeShareModal()">关闭</button>
+        <button class="btn btn-primary" onclick="downloadShareCard()">📥 保存图片</button>
+      </div>
+      <div class="share-tip">💡 长按图片可保存或分享到社交媒体</div>
+    </div>
+  </div>
+
   <div id="toast" class="toast"></div>
 
   <script src="js/app.js?v=20260615"></script>

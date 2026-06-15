@@ -2,14 +2,14 @@ const express = require('express');
 const router = express.Router();
 const db = require('../data/database');
 
-let { SUPPORTED_CITIES, dances, getNextDanceId, isRegistered, addRegistration, removeRegistration, getRegisteredUsers, isRegistrationFull, isRegistrationClosed, getUserRegisteredDances, addNotification } = db;
+let { SUPPORTED_CITIES, dances, getNextDanceId, isRegistered, addRegistration, removeRegistration, getRegisteredUsers, isRegistrationFull, isRegistrationClosed, getUserRegisteredDances, addNotification, isFavorited, addFavorite, removeFavorite, getFavoriteCount, getFavoritesByUser } = db;
 
 router.get('/cities', (req, res) => {
   res.json(SUPPORTED_CITIES);
 });
 
 router.get('/', (req, res) => {
-  const { style, date, sort, city, page = 1, limit = 10 } = req.query;
+  const { style, date, sort, city, page = 1, limit = 10, userId } = req.query;
   
   let filtered = [...dances];
   
@@ -36,16 +36,22 @@ router.get('/', (req, res) => {
   const start = (page - 1) * limit;
   const paginated = filtered.slice(start, start + parseInt(limit));
   
+  const dataWithFavorites = paginated.map(dance => ({
+    ...dance,
+    isFavorited: userId ? isFavorited(parseInt(userId), dance.id) : false,
+    favoriteCount: getFavoriteCount(dance.id)
+  }));
+  
   res.json({
     total: filtered.length,
     page: parseInt(page),
     limit: parseInt(limit),
-    data: paginated
+    data: dataWithFavorites
   });
 });
 
 router.get('/hot', (req, res) => {
-  const { limit = 5, city } = req.query;
+  const { limit = 5, city, userId } = req.query;
   let sorted = [...dances];
   if (city) {
     sorted = sorted.filter(d => d.city === city);
@@ -53,7 +59,12 @@ router.get('/hot', (req, res) => {
   sorted = sorted.sort((a, b) => 
     (b.viewCount + b.attendeeCount * 2) - (a.viewCount + a.attendeeCount * 2)
   );
-  res.json(sorted.slice(0, parseInt(limit)));
+  const dataWithFavorites = sorted.slice(0, parseInt(limit)).map(dance => ({
+    ...dance,
+    isFavorited: userId ? isFavorited(parseInt(userId), dance.id) : false,
+    favoriteCount: getFavoriteCount(dance.id)
+  }));
+  res.json(dataWithFavorites);
 });
 
 router.get('/:id', (req, res) => {
@@ -68,10 +79,81 @@ router.get('/:id', (req, res) => {
     ...dance,
     isFull: isRegistrationFull(dance.id),
     isClosed: isRegistrationClosed(dance.id),
-    isRegistered: userId ? isRegistered(dance.id, parseInt(userId)) : false
+    isRegistered: userId ? isRegistered(dance.id, parseInt(userId)) : false,
+    isFavorited: userId ? isFavorited(parseInt(userId), dance.id) : false,
+    favoriteCount: getFavoriteCount(dance.id)
   };
   
   res.json(response);
+});
+
+router.get('/:id/favorite-status', (req, res) => {
+  const danceId = parseInt(req.params.id);
+  const { userId } = req.query;
+  
+  if (!userId) {
+    return res.status(400).json({ error: '缺少userId参数' });
+  }
+  
+  const dance = dances.find(d => d.id === danceId);
+  if (!dance) {
+    return res.status(404).json({ error: '舞会不存在' });
+  }
+  
+  res.json({
+    isFavorited: isFavorited(parseInt(userId), danceId),
+    favoriteCount: getFavoriteCount(danceId)
+  });
+});
+
+router.post('/:id/favorite', (req, res) => {
+  const danceId = parseInt(req.params.id);
+  const { userId } = req.body;
+  
+  if (!userId) {
+    return res.status(400).json({ error: '缺少userId' });
+  }
+  
+  const dance = dances.find(d => d.id === danceId);
+  if (!dance) {
+    return res.status(404).json({ error: '舞会不存在' });
+  }
+  
+  const result = addFavorite(parseInt(userId), danceId);
+  if (!result) {
+    return res.status(400).json({ error: '已经收藏过该舞会' });
+  }
+  
+  res.status(201).json({
+    message: '收藏成功',
+    favorite: result,
+    favoriteCount: getFavoriteCount(danceId)
+  });
+});
+
+router.delete('/:id/favorite', (req, res) => {
+  const danceId = parseInt(req.params.id);
+  const { userId } = req.body;
+  
+  if (!userId) {
+    return res.status(400).json({ error: '缺少userId' });
+  }
+  
+  const result = removeFavorite(parseInt(userId), danceId);
+  if (!result) {
+    return res.status(400).json({ error: '未收藏该舞会' });
+  }
+  
+  res.json({
+    message: '已取消收藏',
+    favoriteCount: getFavoriteCount(danceId)
+  });
+});
+
+router.get('/user/:userId/favorites', (req, res) => {
+  const userId = parseInt(req.params.userId);
+  const favorites = getFavoritesByUser(userId);
+  res.json(favorites);
 });
 
 router.post('/', (req, res) => {
