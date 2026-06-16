@@ -439,4 +439,88 @@ router.get('/venues/:name/stats', (req, res) => {
   res.json(stats);
 });
 
+function formatICSDate(dateStr, timeStr) {
+  const [year, month, day] = dateStr.split('-');
+  const [hours, minutes] = timeStr.split(':');
+  return `${year}${month}${day}T${hours}${minutes}00`;
+}
+
+function escapeICSValue(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '');
+}
+
+function generateICS(dancesList) {
+  const now = new Date();
+  const dtStamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  
+  let ics = 'BEGIN:VCALENDAR\r\n';
+  ics += 'VERSION:2.0\r\n';
+  ics += 'PRODID:-//Salsa Dance Platform//Dance Calendar//CN\r\n';
+  ics += 'CALSCALE:GREGORIAN\r\n';
+  ics += 'METHOD:PUBLISH\r\n';
+  ics += 'X-WR-CALNAME:莎莎舞舞会日历\r\n';
+  ics += 'X-WR-TIMEZONE:Asia/Shanghai\r\n';
+  
+  dancesList.forEach(dance => {
+    const uid = `dance-${dance.id}@salsaplatform`;
+    const dtStart = formatICSDate(dance.date, dance.startTime);
+    const dtEnd = formatICSDate(dance.date, dance.endTime);
+    const summary = escapeICSValue(dance.title);
+    const location = escapeICSValue(`${dance.venue}, ${dance.city} ${dance.address}`);
+    const description = escapeICSValue(
+      `舞种: ${dance.styles.join('、')}\\n` +
+      `价格: ¥${dance.price}/人\\n` +
+      `主办方: ${dance.organizer || '个人发布'}\\n` +
+      (dance.description ? `\\n${dance.description}` : '')
+    );
+    
+    ics += 'BEGIN:VEVENT\r\n';
+    ics += `UID:${uid}\r\n`;
+    ics += `DTSTAMP:${dtStamp}\r\n`;
+    ics += `DTSTART:${dtStart}\r\n`;
+    ics += `DTEND:${dtEnd}\r\n`;
+    ics += `SUMMARY:${summary}\r\n`;
+    ics += `LOCATION:${location}\r\n`;
+    ics += `DESCRIPTION:${description}\r\n`;
+    ics += 'END:VEVENT\r\n';
+  });
+  
+  ics += 'END:VCALENDAR\r\n';
+  return ics;
+}
+
+router.get('/export/ics', (req, res) => {
+  const { style, date, city } = req.query;
+  
+  let filtered = [...dances];
+  
+  if (city) {
+    filtered = filtered.filter(d => d.city === city);
+  }
+  
+  if (style) {
+    filtered = filtered.filter(d => d.styles.includes(style));
+  }
+  
+  if (date) {
+    filtered = filtered.filter(d => d.date === date);
+  }
+  
+  filtered.sort((a, b) => new Date(a.date) - new Date(b.date));
+  
+  const icsContent = generateICS(filtered);
+  const fileName = `salsa-dances-${new Date().toISOString().split('T')[0]}.ics`;
+  
+  res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  res.setHeader('Content-Length', Buffer.byteLength(icsContent, 'utf8'));
+  res.send(icsContent);
+});
+
 module.exports = router;

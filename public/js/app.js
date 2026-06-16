@@ -644,6 +644,152 @@ function initFilters() {
   document.getElementById('partnerRole').addEventListener('change', loadPartners);
   document.getElementById('partnerLevel').addEventListener('change', loadPartners);
   document.getElementById('matchBtn').addEventListener('click', smartMatch);
+  
+  const exportBtn = document.getElementById('exportCalendarBtn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', exportCalendar);
+  }
+}
+
+function getCurrentFilteredDances() {
+  const styleFilter = document.getElementById('styleFilter').value;
+  const sortSelect = document.getElementById('sortSelect').value;
+  
+  let filtered = [...allDances];
+  
+  if (selectedDate) {
+    filtered = filtered.filter(d => d.date === selectedDate);
+  }
+  
+  if (styleFilter) {
+    filtered = filtered.filter(d => d.styles.includes(styleFilter));
+  }
+  
+  if (sortSelect === 'hot') {
+    filtered.sort((a, b) => (b.viewCount + b.attendeeCount * 2) - (a.viewCount + a.attendeeCount * 2));
+  } else if (sortSelect === 'price') {
+    filtered.sort((a, b) => a.price - b.price);
+  } else {
+    filtered.sort((a, b) => new Date(a.date) - new Date(b.date));
+  }
+  
+  return filtered;
+}
+
+function formatICSDate(dateStr, timeStr) {
+  const [year, month, day] = dateStr.split('-');
+  const [hours, minutes] = timeStr.split(':');
+  return `${year}${month}${day}T${hours}${minutes}00`;
+}
+
+function escapeICSValue(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '');
+}
+
+function generateICSContent(dancesList) {
+  const now = new Date();
+  const dtStamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  
+  let ics = 'BEGIN:VCALENDAR\r\n';
+  ics += 'VERSION:2.0\r\n';
+  ics += 'PRODID:-//Salsa Dance Platform//Dance Calendar//CN\r\n';
+  ics += 'CALSCALE:GREGORIAN\r\n';
+  ics += 'METHOD:PUBLISH\r\n';
+  ics += 'X-WR-CALNAME:莎莎舞舞会日历\r\n';
+  ics += 'X-WR-TIMEZONE:Asia/Shanghai\r\n';
+  
+  dancesList.forEach(dance => {
+    const uid = `dance-${dance.id}@salsaplatform`;
+    const dtStart = formatICSDate(dance.date, dance.startTime);
+    const dtEnd = formatICSDate(dance.date, dance.endTime);
+    const summary = escapeICSValue(dance.title);
+    const location = escapeICSValue(`${dance.venue}, ${dance.city} ${dance.address}`);
+    const description = escapeICSValue(
+      `舞种: ${dance.styles.join('、')}\\n` +
+      `价格: ¥${dance.price}/人\\n` +
+      `主办方: ${dance.organizer || '个人发布'}\\n` +
+      (dance.description ? `\\n${dance.description}` : '')
+    );
+    
+    ics += 'BEGIN:VEVENT\r\n';
+    ics += `UID:${uid}\r\n`;
+    ics += `DTSTAMP:${dtStamp}\r\n`;
+    ics += `DTSTART:${dtStart}\r\n`;
+    ics += `DTEND:${dtEnd}\r\n`;
+    ics += `SUMMARY:${summary}\r\n`;
+    ics += `LOCATION:${location}\r\n`;
+    ics += `DESCRIPTION:${description}\r\n`;
+    ics += 'END:VEVENT\r\n';
+  });
+  
+  ics += 'END:VCALENDAR\r\n';
+  return ics;
+}
+
+function downloadICSFile(content, filename) {
+  const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+async function exportCalendar() {
+  try {
+    const filteredDances = getCurrentFilteredDances();
+    
+    if (filteredDances.length === 0) {
+      showToast('当前筛选条件下没有舞会，无法导出', 'error');
+      return;
+    }
+    
+    const styleFilter = document.getElementById('styleFilter').value;
+    const params = new URLSearchParams();
+    if (currentCity) params.set('city', currentCity);
+    if (styleFilter) params.set('style', styleFilter);
+    if (selectedDate) params.set('date', selectedDate);
+    
+    const exportUrl = `${API_BASE}/dances/export/ics?${params.toString()}`;
+    
+    try {
+      const res = await fetch(exportUrl);
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const fileName = `salsa-dances-${new Date().toISOString().split('T')[0]}.ics`;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        showToast(`成功导出 ${filteredDances.length} 场舞会到日历文件`, 'success');
+        return;
+      }
+    } catch (apiError) {
+      console.warn('后端导出API不可用，使用前端生成:', apiError);
+    }
+    
+    const icsContent = generateICSContent(filteredDances);
+    const fileName = `salsa-dances-${new Date().toISOString().split('T')[0]}.ics`;
+    downloadICSFile(icsContent, fileName);
+    showToast(`成功导出 ${filteredDances.length} 场舞会到日历文件`, 'success');
+    
+  } catch (e) {
+    console.error('导出日历失败:', e);
+    showToast('导出日历失败，请稍后重试', 'error');
+  }
 }
 
 async function loadDances() {
