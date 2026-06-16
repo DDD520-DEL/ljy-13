@@ -183,6 +183,9 @@ function initNavigation() {
       if (view === 'messages') {
         loadConversations();
       }
+      if (view === 'self-test') {
+        initSelfTest();
+      }
     });
   });
 }
@@ -218,7 +221,7 @@ function goBackFromVenue() {
 }
 
 function getActiveView() {
-  const views = ['calendar', 'map', 'partners', 'encyclopedia', 'messages', 'publish', 'profile', 'venue', 'help'];
+  const views = ['calendar', 'map', 'partners', 'encyclopedia', 'self-test', 'messages', 'publish', 'profile', 'venue', 'help'];
   for (const v of views) {
     const el = document.getElementById(`${v}-view`);
     if (el && el.classList.contains('active')) {
@@ -2749,6 +2752,7 @@ async function loadUserProfile() {
           <div class="profile-tags">
             <span class="role-badge role-${currentUser.role}">${roleText}</span>
             <span class="level-badge level-${currentUser.level}">${levelText}</span>
+            <button class="btn btn-secondary btn-sm" onclick="goToSelfTest()" style="margin-left: 8px; font-size: 12px; padding: 4px 12px;">🎯 去自测</button>
           </div>
           <div class="profile-stats">
             <div class="profile-stat">
@@ -4802,6 +4806,14 @@ function scrollToHelp() {
   }
 }
 
+function goToSelfTest() {
+  const selfTestBtn = document.querySelector('.nav-btn[data-view="self-test"]');
+  if (selfTestBtn) {
+    selfTestBtn.click();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
 let statsRefreshInterval = null;
 const STATS_REFRESH_INTERVAL = 60000;
 
@@ -4892,6 +4904,446 @@ function renderPlatformStats(stats) {
   if (updateTimeEl && stats.generatedAt) {
     const time = new Date(stats.generatedAt);
     updateTimeEl.textContent = `最后更新: ${time.toLocaleTimeString('zh-CN')}`;
+  }
+}
+
+const SELF_TEST_QUESTIONS = [
+  {
+    id: 1,
+    question: "您的舞龄是多久？",
+    options: [
+      { value: 1, label: "不到1年", score: 1 },
+      { value: 2, label: "1-2年", score: 2 },
+      { value: 3, label: "2-3年", score: 3 },
+      { value: 4, label: "3-5年", score: 4 },
+      { value: 5, label: "5年以上", score: 5 }
+    ]
+  },
+  {
+    id: 2,
+    question: "您掌握的舞蹈动作数量大约是多少？",
+    options: [
+      { value: 1, label: "不到10个基础动作", score: 1 },
+      { value: 2, label: "10-30个基础动作", score: 2 },
+      { value: 3, label: "30-50个动作，包含一些变化", score: 3 },
+      { value: 4, label: "50个以上，能熟练组合运用", score: 4 },
+      { value: 5, label: "精通大量动作，还能即兴编舞", score: 5 }
+    ]
+  },
+  {
+    id: 3,
+    question: "您是否参加过舞蹈表演或比赛？",
+    options: [
+      { value: 1, label: "从未参加过", score: 1 },
+      { value: 2, label: "参加过小型内部表演", score: 2 },
+      { value: 3, label: "参加过公开表演或小型比赛", score: 3 },
+      { value: 4, label: "在比赛中获得过名次", score: 4 },
+      { value: 5, label: "经常参加比赛并获得奖项", score: 5 }
+    ]
+  },
+  {
+    id: 4,
+    question: "您每周的练习频率是？",
+    options: [
+      { value: 1, label: "很少练习，偶尔想起来才练", score: 1 },
+      { value: 2, label: "每周1次，每次不到1小时", score: 2 },
+      { value: 3, label: "每周2-3次，每次1-2小时", score: 3 },
+      { value: 4, label: "每周4-5次，每次2小时以上", score: 4 },
+      { value: 5, label: "几乎每天都练习，非常规律", score: 5 }
+    ]
+  },
+  {
+    id: 5,
+    question: "在舞会上与人搭档跳舞时，您的自评舒适度是？",
+    options: [
+      { value: 1, label: "很紧张，经常踩错步子", score: 1 },
+      { value: 2, label: "有点紧张，需要对方提醒", score: 2 },
+      { value: 3, label: "比较放松，能完成基本动作", score: 3 },
+      { value: 4, label: "很放松，能跟随各种引带", score: 4 },
+      { value: 5, label: "非常自如，享受即兴发挥的乐趣", score: 5 }
+    ]
+  }
+];
+
+let selfTestState = {
+  currentQuestion: 0,
+  answers: [],
+  totalScore: 0,
+  resultLevel: null
+};
+
+function initSelfTest() {
+  selfTestState = {
+    currentQuestion: 0,
+    answers: [],
+    totalScore: 0,
+    resultLevel: null
+  };
+  renderSelfTestIntro();
+}
+
+function renderSelfTestIntro() {
+  const container = document.getElementById('selfTestContent');
+  if (!container) return;
+  
+  container.innerHTML = `
+    <div class="self-test-intro">
+      <div class="self-test-intro-icon">💃</div>
+      <h3>欢迎来到舞蹈水平自测</h3>
+      <p>通过以下5道选择题，我们将根据您的舞龄、掌握动作数量、表演经历、练习频率和自评舒适度，为您推荐最适合的水平等级。</p>
+      <p class="self-test-note">测试结果仅供参考，您可以选择是否更新到个人资料。</p>
+      <button id="startTestBtn" class="btn btn-primary btn-lg">开始测试</button>
+    </div>
+  `;
+  
+  const startBtn = document.getElementById('startTestBtn');
+  if (startBtn) {
+    startBtn.addEventListener('click', startSelfTest);
+  }
+}
+
+function startSelfTest() {
+  selfTestState.currentQuestion = 0;
+  selfTestState.answers = [];
+  renderSelfTestQuestion();
+}
+
+function renderSelfTestQuestion() {
+  const container = document.getElementById('selfTestContent');
+  if (!container) return;
+  
+  const question = SELF_TEST_QUESTIONS[selfTestState.currentQuestion];
+  const progress = ((selfTestState.currentQuestion + 1) / SELF_TEST_QUESTIONS.length) * 100;
+  
+  container.innerHTML = `
+    <div class="self-test-question">
+      <div class="self-test-progress">
+        <div class="self-test-progress-bar">
+          <div class="self-test-progress-fill" style="width: ${progress}%"></div>
+        </div>
+        <div class="self-test-progress-text">
+          第 ${selfTestState.currentQuestion + 1} / ${SELF_TEST_QUESTIONS.length} 题
+        </div>
+      </div>
+      
+      <h3 class="self-test-question-title">${question.question}</h3>
+      
+      <div class="self-test-options">
+        ${question.options.map((option, index) => `
+          <label class="self-test-option" data-value="${option.value}">
+            <input type="radio" name="q${question.id}" value="${option.value}" style="display:none;">
+            <div class="self-test-option-content">
+              <span class="self-test-option-index">${String.fromCharCode(65 + index)}</span>
+              <span class="self-test-option-label">${option.label}</span>
+            </div>
+          </label>
+        `).join('')}
+      </div>
+      
+      <div class="self-test-actions">
+        ${selfTestState.currentQuestion > 0 ? `
+          <button id="prevQuestionBtn" class="btn btn-secondary">上一题</button>
+        ` : ''}
+        <button id="nextQuestionBtn" class="btn btn-primary" disabled>
+          ${selfTestState.currentQuestion === SELF_TEST_QUESTIONS.length - 1 ? '查看结果' : '下一题'}
+        </button>
+      </div>
+    </div>
+  `;
+  
+  const options = container.querySelectorAll('.self-test-option');
+  options.forEach(option => {
+    option.addEventListener('click', () => {
+      options.forEach(o => o.classList.remove('selected'));
+      option.classList.add('selected');
+      document.getElementById('nextQuestionBtn').disabled = false;
+    });
+  });
+  
+  const prevBtn = document.getElementById('prevQuestionBtn');
+  if (prevBtn) {
+    prevBtn.addEventListener('click', goToPrevQuestion);
+  }
+  
+  const nextBtn = document.getElementById('nextQuestionBtn');
+  if (nextBtn) {
+    nextBtn.addEventListener('click', goToNextQuestion);
+  }
+  
+  if (selfTestState.answers[selfTestState.currentQuestion]) {
+    const savedValue = selfTestState.answers[selfTestState.currentQuestion];
+    const savedOption = container.querySelector(`.self-test-option[data-value="${savedValue}"]`);
+    if (savedOption) {
+      savedOption.classList.add('selected');
+      nextBtn.disabled = false;
+    }
+  }
+}
+
+function goToPrevQuestion() {
+  if (selfTestState.currentQuestion > 0) {
+    selfTestState.currentQuestion--;
+    renderSelfTestQuestion();
+  }
+}
+
+function goToNextQuestion() {
+  const selectedOption = document.querySelector('.self-test-option.selected');
+  if (!selectedOption) return;
+  
+  const value = parseInt(selectedOption.dataset.value);
+  selfTestState.answers[selfTestState.currentQuestion] = value;
+  
+  if (selfTestState.currentQuestion < SELF_TEST_QUESTIONS.length - 1) {
+    selfTestState.currentQuestion++;
+    renderSelfTestQuestion();
+  } else {
+    calculateSelfTestResult();
+  }
+}
+
+function calculateSelfTestResult() {
+  let totalScore = 0;
+  selfTestState.answers.forEach((answer, index) => {
+    const question = SELF_TEST_QUESTIONS[index];
+    const selectedOption = question.options.find(o => o.value === answer);
+    if (selectedOption) {
+      totalScore += selectedOption.score;
+    }
+  });
+  
+  selfTestState.totalScore = totalScore;
+  
+  const maxScore = SELF_TEST_QUESTIONS.length * 5;
+  const percentage = (totalScore / maxScore) * 100;
+  
+  if (percentage < 40) {
+    selfTestState.resultLevel = 'beginner';
+  } else if (percentage < 70) {
+    selfTestState.resultLevel = 'intermediate';
+  } else {
+    selfTestState.resultLevel = 'advanced';
+  }
+  
+  renderSelfTestResult();
+}
+
+function getLevelLabel(level) {
+  const labels = {
+    beginner: '入门',
+    intermediate: '中级',
+    advanced: '高级'
+  };
+  return labels[level] || level;
+}
+
+function getLevelIcon(level) {
+  const icons = {
+    beginner: '🌱',
+    intermediate: '🌿',
+    advanced: '🌳'
+  };
+  return icons[level] || '💃';
+}
+
+function getLevelColor(level) {
+  const colors = {
+    beginner: '#4CAF50',
+    intermediate: '#2196F3',
+    advanced: '#9C27B0'
+  };
+  return colors[level] || '#666';
+}
+
+function renderSelfTestResult() {
+  const container = document.getElementById('selfTestContent');
+  if (!container) return;
+  
+  const maxScore = SELF_TEST_QUESTIONS.length * 5;
+  const percentage = Math.round((selfTestState.totalScore / maxScore) * 100);
+  const levelColor = getLevelColor(selfTestState.resultLevel);
+  const levelIcon = getLevelIcon(selfTestState.resultLevel);
+  const levelLabel = getLevelLabel(selfTestState.resultLevel);
+  
+  const levelDescriptions = {
+    beginner: {
+      title: '入门阶段',
+      desc: '您正处于舞蹈学习的起步阶段，建议多参加基础课程，打好基础，多与不同的舞伴练习，积累经验。',
+      tips: ['多参加基础班课程', '每周至少练习2次', '勇敢地邀请他人跳舞']
+    },
+    intermediate: {
+      title: '中级阶段',
+      desc: '您已经掌握了不错的舞蹈基础，能够自如地在舞会上跳舞。建议学习更多的变化动作，提升舞蹈表现力。',
+      tips: ['学习进阶技巧和组合', '尝试不同风格的舞蹈', '参加工作坊提升水平']
+    },
+    advanced: {
+      title: '高级阶段',
+      desc: '恭喜！您已经达到了很高的舞蹈水平，可以考虑参加表演或比赛，或者帮助新舞者一起进步。',
+      tips: ['尝试参加舞蹈比赛', '学习编舞和即兴发挥', '可以考虑担任助教或老师']
+    }
+  };
+  
+  const desc = levelDescriptions[selfTestState.resultLevel];
+  
+  container.innerHTML = `
+    <div class="self-test-result">
+      <div class="self-test-result-header">
+        <div class="self-test-result-icon" style="background-color: ${levelColor}20;">
+          ${levelIcon}
+        </div>
+        <h2 class="self-test-result-title">测试完成！</h2>
+        <p class="self-test-result-subtitle">根据您的回答，我们为您评估的等级是</p>
+      </div>
+      
+      <div class="self-test-result-level" style="border-color: ${levelColor};">
+        <span class="self-test-level-badge" style="background-color: ${levelColor};">
+          ${levelLabel}
+        </span>
+        <div class="self-test-score-info">
+          <div class="self-test-score-value">${selfTestState.totalScore} / ${maxScore}</div>
+          <div class="self-test-score-percent">得分率: ${percentage}%</div>
+        </div>
+      </div>
+      
+      <div class="self-test-result-detail">
+        <h4>${desc.title}</h4>
+        <p>${desc.desc}</p>
+        <div class="self-test-tips">
+          <h5>💡 进阶建议：</h5>
+          <ul>
+            ${desc.tips.map(tip => `<li>${tip}</li>`).join('')}
+          </ul>
+        </div>
+      </div>
+      
+      <div class="self-test-result-breakdown">
+        <h4>📊 各维度得分</h4>
+        <div class="self-test-breakdown-list">
+          ${SELF_TEST_QUESTIONS.map((q, index) => {
+            const answer = selfTestState.answers[index];
+            const option = q.options.find(o => o.value === answer);
+            const scorePercent = (option.score / 5) * 100;
+            return `
+              <div class="self-test-breakdown-item">
+                <div class="self-test-breakdown-header">
+                  <span class="self-test-breakdown-label">${q.question}</span>
+                  <span class="self-test-breakdown-score">${option.score}/5</span>
+                </div>
+                <div class="self-test-breakdown-bar">
+                  <div class="self-test-breakdown-fill" style="width: ${scorePercent}%; background-color: ${levelColor};"></div>
+                </div>
+                <div class="self-test-breakdown-answer">您的选择: ${option.label}</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+      
+      <div class="self-test-result-actions">
+        <button id="updateProfileBtn" class="btn btn-primary btn-lg">
+          ✅ 一键更新到个人资料
+        </button>
+        <button id="retakeTestBtn" class="btn btn-secondary">
+          🔄 重新测试
+        </button>
+      </div>
+      
+      ${currentUser ? `
+        <div class="self-test-current-level">
+          <p>您当前资料中的等级是: <strong>${getLevelLabel(currentUser.level)}</strong></p>
+        </div>
+      ` : `
+        <div class="self-test-login-note">
+          <p>⚠️ 请先选择身份后才能更新个人资料</p>
+        </div>
+      `}
+    </div>
+  `;
+  
+  const updateBtn = document.getElementById('updateProfileBtn');
+  if (updateBtn) {
+    updateBtn.addEventListener('click', updateLevelToProfile);
+    if (!currentUser) {
+      updateBtn.disabled = true;
+      updateBtn.classList.add('disabled');
+    }
+  }
+  
+  const retakeBtn = document.getElementById('retakeTestBtn');
+  if (retakeBtn) {
+    retakeBtn.addEventListener('click', () => {
+      selfTestState = {
+        currentQuestion: 0,
+        answers: [],
+        totalScore: 0,
+        resultLevel: null
+      };
+      renderSelfTestIntro();
+    });
+  }
+}
+
+async function updateLevelToProfile() {
+  if (!currentUser) {
+    showToast('请先选择身份', 'error');
+    return;
+  }
+  
+  const updateBtn = document.getElementById('updateProfileBtn');
+  if (updateBtn) {
+    updateBtn.disabled = true;
+    updateBtn.textContent = '更新中...';
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/users/${currentUser.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        level: selfTestState.resultLevel
+      })
+    });
+    
+    if (res.ok) {
+      const updatedUser = await res.json();
+      currentUser = updatedUser;
+      
+      const userIndex = allUsers.findIndex(u => u.id === currentUser.id);
+      if (userIndex !== -1) {
+        allUsers[userIndex] = updatedUser;
+      }
+      
+      showToast(`已将您的水平等级更新为「${getLevelLabel(selfTestState.resultLevel)}」！`, 'success');
+      
+      if (updateBtn) {
+        updateBtn.textContent = '✅ 更新成功';
+        updateBtn.classList.add('btn-success');
+        setTimeout(() => {
+          updateBtn.textContent = '✅ 一键更新到个人资料';
+          updateBtn.classList.remove('btn-success');
+          updateBtn.disabled = false;
+        }, 2000);
+      }
+      
+      const currentLevelEl = document.querySelector('.self-test-current-level p');
+      if (currentLevelEl) {
+        currentLevelEl.innerHTML = `您当前资料中的等级是: <strong>${getLevelLabel(currentUser.level)}</strong>`;
+      }
+    } else {
+      const data = await res.json();
+      showToast(data.error || '更新失败，请重试', 'error');
+      if (updateBtn) {
+        updateBtn.disabled = false;
+        updateBtn.textContent = '✅ 一键更新到个人资料';
+      }
+    }
+  } catch (e) {
+    console.error('更新等级失败:', e);
+    showToast('网络错误，请稍后重试', 'error');
+    if (updateBtn) {
+      updateBtn.disabled = false;
+      updateBtn.textContent = '✅ 一键更新到个人资料';
+    }
   }
 }
 

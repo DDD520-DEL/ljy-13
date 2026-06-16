@@ -23,6 +23,7 @@
         <button class="nav-btn" data-view="map">附近地图</button>
         <button class="nav-btn" data-view="partners">舞伴匹配</button>
         <button class="nav-btn" data-view="encyclopedia">舞种百科</button>
+        <button class="nav-btn" data-view="self-test">🎯 水平自测</button>
         <button class="nav-btn" data-view="messages">
           私信
           <span class="msg-nav-badge" id="msgNavBadge" style="display:none;">0</span>
@@ -314,6 +315,22 @@
         </div>
         <div id="venueContent" class="venue-content">
           <div style="text-align:center;color:#999;padding:40px;">加载中...</div>
+        </div>
+      </section>
+
+      <section id="self-test-view" class="view">
+        <div class="view-header">
+          <h2>🎯 舞蹈水平自测</h2>
+          <p class="encyclopedia-subtitle">回答5个简单问题，快速评估您的舞蹈水平等级</p>
+        </div>
+        <div id="selfTestContent" class="self-test-container">
+          <div class="self-test-intro">
+            <div class="self-test-intro-icon">💃</div>
+            <h3>欢迎来到舞蹈水平自测</h3>
+            <p>通过以下5道选择题，我们将根据您的舞龄、掌握动作数量、表演经历、练习频率和自评舒适度，为您推荐最适合的水平等级。</p>
+            <p class="self-test-note">测试结果仅供参考，您可以选择是否更新到个人资料。</p>
+            <button id="startTestBtn" class="btn btn-primary btn-lg">开始测试</button>
+          </div>
         </div>
       </section>
 
