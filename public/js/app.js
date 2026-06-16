@@ -99,6 +99,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initEncyclopedia();
   initVenueView();
   initHelpCenter();
+  initStatsDashboard();
   await initCities();
   loadUsers();
   loadDances();
@@ -4661,4 +4662,122 @@ function scrollToHelp() {
     helpBtn.click();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+}
+
+let statsRefreshInterval = null;
+const STATS_REFRESH_INTERVAL = 60000;
+
+function initStatsDashboard() {
+  loadPlatformStats();
+  const refreshBtn = document.getElementById('refreshStatsBtn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => {
+      loadPlatformStats();
+      const btn = refreshBtn;
+      btn.style.transform = 'rotate(360deg)';
+      setTimeout(() => { btn.style.transform = ''; }, 500);
+    });
+  }
+  if (statsRefreshInterval) {
+    clearInterval(statsRefreshInterval);
+  }
+  statsRefreshInterval = setInterval(loadPlatformStats, STATS_REFRESH_INTERVAL);
+}
+
+async function loadPlatformStats() {
+  try {
+    const res = await fetch(`${API_BASE}/stats`);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const stats = await res.json();
+    renderPlatformStats(stats);
+  } catch (e) {
+    console.error('加载统计数据失败:', e);
+    const updateTimeEl = document.getElementById('statsUpdateTime');
+    if (updateTimeEl) {
+      updateTimeEl.textContent = '加载失败，请稍后重试';
+    }
+  }
+}
+
+function renderPlatformStats(stats) {
+  const totalDancesEl = document.getElementById('totalDancesCount');
+  const totalUsersEl = document.getElementById('totalUsersCount');
+  const monthDancesEl = document.getElementById('monthDancesCount');
+  const hotDancesListEl = document.getElementById('hotDancesList');
+  const updateTimeEl = document.getElementById('statsUpdateTime');
+
+  if (totalDancesEl) {
+    animateNumber(totalDancesEl, stats.totalDances);
+  }
+  if (totalUsersEl) {
+    animateNumber(totalUsersEl, stats.totalUsers);
+  }
+  if (monthDancesEl) {
+    animateNumber(monthDancesEl, stats.thisMonthDances);
+  }
+
+  if (hotDancesListEl) {
+    hotDancesListEl.innerHTML = '';
+    if (stats.top3HotDances && stats.top3HotDances.length > 0) {
+      stats.top3HotDances.forEach((dance, index) => {
+        const li = document.createElement('li');
+        li.className = `hot-dance-item rank-${index + 1}`;
+        const rankBadge = index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉';
+        const styleTags = (dance.styles || []).map(s => 
+          `<span class="style-tag-mini style-${s.toLowerCase()}">${s}</span>`
+        ).join('');
+        li.innerHTML = `
+          <div class="hot-dance-rank">${rankBadge}</div>
+          <div class="hot-dance-info">
+            <div class="hot-dance-title" title="${escapeHtml(dance.title)}">${escapeHtml(dance.title)}</div>
+            <div class="hot-dance-meta">
+              <span class="hot-dance-venue">📍 ${escapeHtml(dance.venue)}</span>
+              <span class="hot-dance-city">${escapeHtml(dance.city)}</span>
+            </div>
+            <div class="hot-dance-stats">
+              ${styleTags}
+              <span class="hot-dance-hot">🔥 ${dance.hotScore}</span>
+            </div>
+          </div>
+        `;
+        li.style.cursor = 'pointer';
+        li.addEventListener('click', () => openDanceModal(dance.id));
+        hotDancesListEl.appendChild(li);
+      });
+    } else {
+      hotDancesListEl.innerHTML = '<li class="hot-dances-empty">暂无热门舞会</li>';
+    }
+  }
+
+  if (updateTimeEl && stats.generatedAt) {
+    const time = new Date(stats.generatedAt);
+    updateTimeEl.textContent = `最后更新: ${time.toLocaleTimeString('zh-CN')}`;
+  }
+}
+
+function animateNumber(element, target) {
+  const start = parseInt(element.textContent) || 0;
+  const duration = 800;
+  const startTime = performance.now();
+  
+  function update(currentTime) {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const easeProgress = 1 - Math.pow(1 - progress, 3);
+    const current = Math.round(start + (target - start) * easeProgress);
+    element.textContent = current.toLocaleString('zh-CN');
+    if (progress < 1) {
+      requestAnimationFrame(update);
+    }
+  }
+  requestAnimationFrame(update);
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }

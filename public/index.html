@@ -339,6 +339,50 @@
     </div>
   </main>
 
+  <section class="stats-dashboard">
+    <div class="container">
+      <div class="stats-header">
+        <h2 class="stats-title">📊 平台数据统计</h2>
+        <div class="stats-refresh-info">
+          <span id="statsUpdateTime" class="stats-update-time">加载中...</span>
+          <button id="refreshStatsBtn" class="stats-refresh-btn" title="手动刷新">🔄</button>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stats-card stats-card-total-dances">
+          <div class="stats-card-icon">🎭</div>
+          <div class="stats-card-content">
+            <div class="stats-card-label">舞会总场次</div>
+            <div class="stats-card-value" id="totalDancesCount">--</div>
+          </div>
+        </div>
+        <div class="stats-card stats-card-total-users">
+          <div class="stats-card-icon">👥</div>
+          <div class="stats-card-content">
+            <div class="stats-card-label">注册用户数</div>
+            <div class="stats-card-value" id="totalUsersCount">--</div>
+          </div>
+        </div>
+        <div class="stats-card stats-card-month-dances">
+          <div class="stats-card-icon">📅</div>
+          <div class="stats-card-content">
+            <div class="stats-card-label">本月舞会数量</div>
+            <div class="stats-card-value" id="monthDancesCount">--</div>
+          </div>
+        </div>
+        <div class="stats-card stats-card-hot-dances">
+          <div class="stats-card-icon">🔥</div>
+          <div class="stats-card-content">
+            <div class="stats-card-label">本周热门舞会 Top 3</div>
+            <ol class="hot-dances-list" id="hotDancesList">
+              <li class="hot-dances-loading">加载中...</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <footer class="page-footer">
     <div class="container">
       <div class="footer-content">

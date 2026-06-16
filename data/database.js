@@ -1718,6 +1718,76 @@ function getVenueStats(venueName) {
   };
 }
 
+function getPlatformStats() {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const currentDate = now.getDate();
+  const dayOfWeek = now.getDay();
+  
+  const weekStart = new Date(currentYear, currentMonth, currentDate - dayOfWeek);
+  weekStart.setHours(0, 0, 0, 0);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  
+  const totalDances = dances.length;
+  const totalUsers = users.length;
+  
+  const thisMonthDances = dances.filter(d => {
+    const danceDate = new Date(d.date);
+    return danceDate.getFullYear() === currentYear && danceDate.getMonth() === currentMonth;
+  }).length;
+  
+  const thisWeekDances = dances.filter(d => {
+    const danceDate = new Date(`${d.date}T00:00:00`);
+    return danceDate >= weekStart && danceDate < weekEnd;
+  });
+  
+  const top3HotDances = [...thisWeekDances]
+    .sort((a, b) => (b.viewCount + b.attendeeCount * 2) - (a.viewCount + a.attendeeCount * 2))
+    .slice(0, 3)
+    .map(d => ({
+      id: d.id,
+      title: d.title,
+      venue: d.venue,
+      city: d.city,
+      date: d.date,
+      viewCount: d.viewCount,
+      attendeeCount: d.attendeeCount,
+      styles: d.styles,
+      price: d.price,
+      hotScore: d.viewCount + d.attendeeCount * 2
+    }));
+  
+  if (top3HotDances.length < 3) {
+    const additionalDances = [...dances]
+      .filter(d => !top3HotDances.find(t => t.id === d.id))
+      .sort((a, b) => (b.viewCount + b.attendeeCount * 2) - (a.viewCount + a.attendeeCount * 2))
+      .slice(0, 3 - top3HotDances.length)
+      .map(d => ({
+        id: d.id,
+        title: d.title,
+        venue: d.venue,
+        city: d.city,
+        date: d.date,
+        viewCount: d.viewCount,
+        attendeeCount: d.attendeeCount,
+        styles: d.styles,
+        price: d.price,
+        hotScore: d.viewCount + d.attendeeCount * 2
+      }));
+    top3HotDances.push(...additionalDances);
+  }
+  
+  return {
+    totalDances,
+    totalUsers,
+    thisMonthDances,
+    top3HotDances,
+    generatedAt: now.toISOString()
+  };
+}
+
 module.exports = {
   SUPPORTED_CITIES,
   dances,
@@ -1792,5 +1862,6 @@ module.exports = {
   getAllVenues,
   getVenueByName,
   getVenueDances,
-  getVenueStats
+  getVenueStats,
+  getPlatformStats
 };
