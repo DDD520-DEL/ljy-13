@@ -1728,7 +1728,7 @@ function getPlatformStats() {
   const weekStart = new Date(currentYear, currentMonth, currentDate - dayOfWeek);
   weekStart.setHours(0, 0, 0, 0);
   const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 7);
+  weekEnd.setDate(weekEnd.getDate() + 8);
   
   const totalDances = dances.length;
   const totalUsers = users.length;
