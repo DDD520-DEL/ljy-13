@@ -676,10 +676,25 @@ function getCurrentFilteredDances() {
   return filtered;
 }
 
+function addDays(dateStr, days) {
+  const date = new Date(`${dateStr}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function formatICSDate(dateStr, timeStr) {
   const [year, month, day] = dateStr.split('-');
   const [hours, minutes] = timeStr.split(':');
   return `${year}${month}${day}T${hours}${minutes}00`;
+}
+
+function isOvernight(startTime, endTime) {
+  const startHour = parseInt(startTime.split(':')[0], 10);
+  const endHour = parseInt(endTime.split(':')[0], 10);
+  return endHour < startHour;
 }
 
 function escapeICSValue(str) {
@@ -703,11 +718,24 @@ function generateICSContent(dancesList) {
   ics += 'METHOD:PUBLISH\r\n';
   ics += 'X-WR-CALNAME:莎莎舞舞会日历\r\n';
   ics += 'X-WR-TIMEZONE:Asia/Shanghai\r\n';
+  ics += 'BEGIN:VTIMEZONE\r\n';
+  ics += 'TZID:Asia/Shanghai\r\n';
+  ics += 'X-LIC-LOCATION:Asia/Shanghai\r\n';
+  ics += 'BEGIN:STANDARD\r\n';
+  ics += 'TZOFFSETFROM:+0800\r\n';
+  ics += 'TZOFFSETTO:+0800\r\n';
+  ics += 'TZNAME:CST\r\n';
+  ics += 'DTSTART:19700101T000000\r\n';
+  ics += 'END:STANDARD\r\n';
+  ics += 'END:VTIMEZONE\r\n';
   
   dancesList.forEach(dance => {
     const uid = `dance-${dance.id}@salsaplatform`;
     const dtStart = formatICSDate(dance.date, dance.startTime);
-    const dtEnd = formatICSDate(dance.date, dance.endTime);
+    const endDate = isOvernight(dance.startTime, dance.endTime) 
+      ? addDays(dance.date, 1) 
+      : dance.date;
+    const dtEnd = formatICSDate(endDate, dance.endTime);
     const summary = escapeICSValue(dance.title);
     const location = escapeICSValue(`${dance.venue}, ${dance.city} ${dance.address}`);
     const description = escapeICSValue(
@@ -720,8 +748,8 @@ function generateICSContent(dancesList) {
     ics += 'BEGIN:VEVENT\r\n';
     ics += `UID:${uid}\r\n`;
     ics += `DTSTAMP:${dtStamp}\r\n`;
-    ics += `DTSTART:${dtStart}\r\n`;
-    ics += `DTEND:${dtEnd}\r\n`;
+    ics += `DTSTART;TZID=Asia/Shanghai:${dtStart}\r\n`;
+    ics += `DTEND;TZID=Asia/Shanghai:${dtEnd}\r\n`;
     ics += `SUMMARY:${summary}\r\n`;
     ics += `LOCATION:${location}\r\n`;
     ics += `DESCRIPTION:${description}\r\n`;
