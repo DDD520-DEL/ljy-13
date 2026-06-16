@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../data/database');
 
-let { invitations, dances, users, getNextInvitationId, isFollowing, isMutualFollowing, addNotification } = db;
+let { invitations, dances, users, getNextInvitationId, isFollowing, isMutualFollowing, addNotification, checkAndAwardBadges } = db;
 
 router.get('/', (req, res) => {
   const { userId, danceId, status, currentUserId } = req.query;
@@ -137,7 +137,13 @@ router.post('/', (req, res) => {
   };
   
   invitations.push(newInvitation);
-  res.status(201).json(newInvitation);
+  
+  const newBadges = checkAndAwardBadges(fromUserId);
+  
+  res.status(201).json({
+    ...newInvitation,
+    newlyEarnedBadges: newBadges
+  });
 });
 
 router.put('/:id/accept', (req, res) => {
@@ -167,7 +173,16 @@ router.put('/:id/accept', (req, res) => {
     invitation.id
   );
   
-  res.json(invitation);
+  const fromUserNewBadges = checkAndAwardBadges(invitation.fromUserId);
+  const toUserNewBadges = checkAndAwardBadges(invitation.toUserId);
+  
+  res.json({
+    ...invitation,
+    newlyEarnedBadges: {
+      fromUser: fromUserNewBadges,
+      toUser: toUserNewBadges
+    }
+  });
 });
 
 router.put('/:id/reject', (req, res) => {

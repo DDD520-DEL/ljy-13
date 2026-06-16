@@ -16,7 +16,10 @@ let {
   getStyleNames,
   getStyleWeightMap,
   getUserAttendedDances,
-  getUserDanceStats
+  getUserDanceStats,
+  getBadgeDefinitions,
+  getUserBadges,
+  checkAndAwardBadges
 } = db;
 
 router.get('/', (req, res) => {
@@ -39,6 +42,11 @@ router.get('/', (req, res) => {
   if (city) {
     filtered = filtered.filter(u => u.city === city);
   }
+  
+  filtered = filtered.map(u => ({
+    ...u,
+    badges: getUserBadges(u.id)
+  }));
   
   if (currentUserId) {
     const cid = parseInt(currentUserId);
@@ -69,6 +77,7 @@ router.get('/:id', (req, res) => {
   
   result.followerCount = getFollowers(user.id).length;
   result.followingCount = getFollowing(user.id).length;
+  result.badges = getUserBadges(user.id);
   
   res.json(result);
 });
@@ -400,6 +409,38 @@ router.get('/:id/dance-stats', (req, res) => {
   
   const stats = getUserDanceStats(userId);
   res.json(stats);
+});
+
+router.get('/badges/definitions', (req, res) => {
+  const definitions = getBadgeDefinitions();
+  res.json(definitions);
+});
+
+router.get('/:id/badges', (req, res) => {
+  const userId = parseInt(req.params.id);
+  const user = users.find(u => u.id === userId);
+  
+  if (!user) {
+    return res.status(404).json({ error: '用户不存在' });
+  }
+  
+  const badges = getUserBadges(userId);
+  res.json(badges);
+});
+
+router.post('/:id/check-badges', (req, res) => {
+  const userId = parseInt(req.params.id);
+  const user = users.find(u => u.id === userId);
+  
+  if (!user) {
+    return res.status(404).json({ error: '用户不存在' });
+  }
+  
+  const newBadges = checkAndAwardBadges(userId);
+  res.json({
+    newlyEarned: newBadges,
+    allBadges: getUserBadges(userId)
+  });
 });
 
 module.exports = router;

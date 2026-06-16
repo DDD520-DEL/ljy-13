@@ -42,6 +42,47 @@ function renderStyleTagsWithWeights(styles) {
   ).join('');
 }
 
+function renderUserBadges(badges, size = 'small') {
+  if (!badges || badges.length === 0) return '';
+  
+  const sizeClass = size === 'small' ? 'badge-small' : size === 'medium' ? 'badge-medium' : 'badge-large';
+  
+  return `
+    <div class="user-badges ${sizeClass}">
+      ${badges.map(badge => `
+        <span class="user-badge" 
+              title="${badge.name}: ${badge.description}" 
+              style="background-color: ${badge.color}20; border-color: ${badge.color};">
+          <span class="badge-icon">${badge.icon}</span>
+        </span>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderBadgesList(badges) {
+  if (!badges || badges.length === 0) {
+    return '<div class="badges-empty">暂无徽章</div>';
+  }
+  
+  return `
+    <div class="badges-list">
+      ${badges.map(badge => `
+        <div class="badge-item" style="border-color: ${badge.color};">
+          <div class="badge-icon-large" style="background-color: ${badge.color}20;">
+            ${badge.icon}
+          </div>
+          <div class="badge-info">
+            <div class="badge-name">${badge.name}</div>
+            <div class="badge-desc">${badge.description}</div>
+            ${badge.earnedAt ? `<div class="badge-earned-at">获得时间: ${new Date(badge.earnedAt).toLocaleDateString()}</div>` : ''}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   initNavigation();
   initCalendar();
@@ -1323,8 +1364,11 @@ function createPartnerCard(user) {
   return `
     <div class="partner-card">
       <div class="partner-header">
-        <div class="partner-avatar">
-          <img src="${user.avatar}" alt="${user.name}">
+        <div class="partner-avatar-container">
+          <div class="partner-avatar">
+            <img src="${user.avatar}" alt="${user.name}">
+          </div>
+          ${renderUserBadges(user.badges, 'small')}
         </div>
         <div class="partner-info">
           <h4>
@@ -1828,12 +1872,13 @@ async function loadUserProfile() {
   }
   
   try {
-    const [userRes, reviewsRes, favoritesRes, historyRes, statsRes] = await Promise.all([
+    const [userRes, reviewsRes, favoritesRes, historyRes, statsRes, badgesRes] = await Promise.all([
       fetch(`${API_BASE}/users/${currentUser.id}?currentUserId=${currentUser.id}`),
       fetch(`${API_BASE}/reviews?userId=${currentUser.id}`),
       loadUserFavorites(),
       fetch(`${API_BASE}/users/${currentUser.id}/dance-history`),
-      fetch(`${API_BASE}/users/${currentUser.id}/dance-stats`)
+      fetch(`${API_BASE}/users/${currentUser.id}/dance-stats`),
+      fetch(`${API_BASE}/users/${currentUser.id}/badges`)
     ]);
     
     const userData = await userRes.json();
@@ -1842,6 +1887,7 @@ async function loadUserProfile() {
     const favorites = favoritesRes;
     const danceHistory = await historyRes.json();
     const danceStats = await statsRes.json();
+    const userBadges = await badgesRes.json();
     
     const followerCount = userData.followerCount || 0;
     const followingCount = userData.followingCount || 0;
@@ -2046,8 +2092,11 @@ async function loadUserProfile() {
         <button class="profile-edit-btn" onclick="openEditProfileModal()">✏️ 编辑资料</button>
       </div>
       <div class="profile-header">
-        <div class="profile-avatar-large">
-          <img src="${currentUser.avatar}" alt="${currentUser.name}">
+        <div class="profile-avatar-container">
+          <div class="profile-avatar-large">
+            <img src="${currentUser.avatar}" alt="${currentUser.name}">
+          </div>
+          ${renderUserBadges(userBadges, 'medium')}
         </div>
         <div class="profile-info">
           <div class="profile-info-header">
@@ -2091,6 +2140,11 @@ async function loadUserProfile() {
         </div>
       </div>
       ${statsPanelHtml}
+      
+      <div class="profile-section badges-section">
+        <h3>🏆 我的成就徽章 (${userBadges.length})</h3>
+        ${renderBadgesList(userBadges)}
+      </div>
       
       ${timelineHtml}
       

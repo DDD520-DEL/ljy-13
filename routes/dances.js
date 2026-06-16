@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../data/database');
 
-let { SUPPORTED_CITIES, dances, getNextDanceId, isRegistered, addRegistration, removeRegistration, getRegisteredUsers, isRegistrationFull, isRegistrationClosed, getUserRegisteredDances, addNotification, isFavorited, addFavorite, removeFavorite, getFavoriteCount, getFavoritesByUser } = db;
+let { SUPPORTED_CITIES, dances, getNextDanceId, isRegistered, addRegistration, removeRegistration, getRegisteredUsers, isRegistrationFull, isRegistrationClosed, getUserRegisteredDances, addNotification, isFavorited, addFavorite, removeFavorite, getFavoriteCount, getFavoritesByUser, checkins, isCheckedIn, checkIn, checkAndAwardBadges, getUserBadges } = db;
 
 router.get('/cities', (req, res) => {
   res.json(SUPPORTED_CITIES);
@@ -315,6 +315,56 @@ router.get('/user/:userId/registered', (req, res) => {
   const userId = parseInt(req.params.userId);
   const dances = getUserRegisteredDances(userId);
   res.json(dances);
+});
+
+router.get('/:id/checkin-status', (req, res) => {
+  const danceId = parseInt(req.params.id);
+  const { userId } = req.query;
+  
+  if (!userId) {
+    return res.status(400).json({ error: '缺少userId参数' });
+  }
+  
+  const dance = dances.find(d => d.id === danceId);
+  if (!dance) {
+    return res.status(404).json({ error: '舞会不存在' });
+  }
+  
+  res.json({
+    isCheckedIn: isCheckedIn(danceId, parseInt(userId))
+  });
+});
+
+router.post('/:id/checkin', (req, res) => {
+  const danceId = parseInt(req.params.id);
+  const { userId } = req.body;
+  
+  if (!userId) {
+    return res.status(400).json({ error: '缺少userId' });
+  }
+  
+  const uid = parseInt(userId);
+  const dance = dances.find(d => d.id === danceId);
+  if (!dance) {
+    return res.status(404).json({ error: '舞会不存在' });
+  }
+  
+  if (isCheckedIn(danceId, uid)) {
+    return res.status(400).json({ error: '您已签到过该舞会' });
+  }
+  
+  const result = checkIn(danceId, uid);
+  if (!result) {
+    return res.status(500).json({ error: '签到失败' });
+  }
+  
+  const newBadges = checkAndAwardBadges(uid);
+  
+  res.status(201).json({
+    message: '签到成功',
+    checkin: result,
+    newlyEarnedBadges: newBadges
+  });
 });
 
 module.exports = router;

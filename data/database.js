@@ -651,6 +651,137 @@ let invitations = [
   }
 ];
 
+const BADGE_DEFINITIONS = [
+  {
+    id: 'first_dance',
+    name: '首支舞曲',
+    description: '完成第一次邀约并被接受',
+    icon: '💃',
+    color: '#FF6B6B',
+    checkCondition: (userId) => {
+      const acceptedInvitations = invitations.filter(
+        inv => inv.fromUserId === userId && inv.status === 'accepted'
+      );
+      return acceptedInvitations.length >= 1;
+    }
+  },
+  {
+    id: 'social_butterfly',
+    name: '社交达人',
+    description: '累计发起5次邀约',
+    icon: '🦋',
+    color: '#4ECDC4',
+    checkCondition: (userId) => {
+      const sentInvitations = invitations.filter(inv => inv.fromUserId === userId);
+      return sentInvitations.length >= 5;
+    }
+  },
+  {
+    id: 'dance_floor_regular',
+    name: '舞会常客',
+    description: '参加过3场不同的舞会',
+    icon: '🎭',
+    color: '#FFE66D',
+    checkCondition: (userId) => {
+      const userCheckins = checkins.filter(c => c.userId === userId);
+      const uniqueDanceIds = [...new Set(userCheckins.map(c => c.danceId))];
+      return uniqueDanceIds.length >= 3;
+    }
+  }
+];
+
+let userBadges = [
+  { userId: 1, badgeId: 'first_dance', earnedAt: '2026-01-10T20:15:00Z' },
+  { userId: 1, badgeId: 'social_butterfly', earnedAt: '2026-03-08T20:30:00Z' },
+  { userId: 1, badgeId: 'dance_floor_regular', earnedAt: '2026-02-14T19:45:00Z' },
+  { userId: 2, badgeId: 'first_dance', earnedAt: '2026-03-08T20:35:00Z' }
+];
+
+function getBadgeDefinitions() {
+  return BADGE_DEFINITIONS.map(b => ({
+    id: b.id,
+    name: b.name,
+    description: b.description,
+    icon: b.icon,
+    color: b.color
+  }));
+}
+
+function getUserBadges(userId) {
+  const uid = parseInt(userId);
+  const earned = userBadges.filter(ub => ub.userId === uid);
+  return earned.map(ub => {
+    const def = BADGE_DEFINITIONS.find(b => b.id === ub.badgeId);
+    return def ? {
+      id: def.id,
+      name: def.name,
+      description: def.description,
+      icon: def.icon,
+      color: def.color,
+      earnedAt: ub.earnedAt
+    } : null;
+  }).filter(Boolean);
+}
+
+function hasBadge(userId, badgeId) {
+  const uid = parseInt(userId);
+  return userBadges.some(ub => ub.userId === uid && ub.badgeId === badgeId);
+}
+
+function awardBadge(userId, badgeId) {
+  const uid = parseInt(userId);
+  if (hasBadge(uid, badgeId)) {
+    return null;
+  }
+  
+  const badgeDef = BADGE_DEFINITIONS.find(b => b.id === badgeId);
+  if (!badgeDef) {
+    return null;
+  }
+  
+  const newBadge = {
+    userId: uid,
+    badgeId: badgeId,
+    earnedAt: new Date().toISOString()
+  };
+  
+  userBadges.push(newBadge);
+  
+  const user = users.find(u => u.id === uid);
+  addNotification(
+    uid,
+    'badge_earned',
+    '获得新徽章',
+    `恭喜你获得「${badgeDef.name}」徽章！`,
+    badgeId
+  );
+  
+  return {
+    id: badgeDef.id,
+    name: badgeDef.name,
+    description: badgeDef.description,
+    icon: badgeDef.icon,
+    color: badgeDef.color,
+    earnedAt: newBadge.earnedAt
+  };
+}
+
+function checkAndAwardBadges(userId) {
+  const uid = parseInt(userId);
+  const newlyEarned = [];
+  
+  BADGE_DEFINITIONS.forEach(badgeDef => {
+    if (!hasBadge(uid, badgeDef.id) && badgeDef.checkCondition(uid)) {
+      const badge = awardBadge(uid, badgeDef.id);
+      if (badge) {
+        newlyEarned.push(badge);
+      }
+    }
+  });
+  
+  return newlyEarned;
+}
+
 let reviews = [
   {
     id: 1,
@@ -1534,5 +1665,10 @@ module.exports = {
   getDanceCheckins,
   getUserAttendedDances,
   getDancePartnersForUser,
-  getUserDanceStats
+  getUserDanceStats,
+  getBadgeDefinitions,
+  getUserBadges,
+  hasBadge,
+  awardBadge,
+  checkAndAwardBadges
 };
