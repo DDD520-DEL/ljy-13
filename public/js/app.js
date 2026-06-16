@@ -83,6 +83,9 @@ function renderBadgesList(badges) {
   `;
 }
 
+let previousView = 'calendar';
+let currentVenueName = null;
+
 document.addEventListener('DOMContentLoaded', async () => {
   initNavigation();
   initCalendar();
@@ -94,6 +97,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initNotifications();
   initEditProfileModal();
   initEncyclopedia();
+  initVenueView();
   await initCities();
   loadUsers();
   loadDances();
@@ -160,6 +164,7 @@ function initNavigation() {
   navBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const view = btn.dataset.view;
+      previousView = view;
       navBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       
@@ -175,6 +180,327 @@ function initNavigation() {
       if (view === 'messages') {
         loadConversations();
       }
+    });
+  });
+}
+
+function initVenueView() {
+  const backBtn = document.getElementById('backFromVenueBtn');
+  if (backBtn) {
+    backBtn.addEventListener('click', goBackFromVenue);
+  }
+}
+
+function goToVenuePage(encodedVenueName) {
+  const venueName = decodeURIComponent(encodedVenueName);
+  currentVenueName = venueName;
+  previousView = getActiveView();
+  
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('venue-view').classList.add('active');
+  
+  document.getElementById('venuePageTitle').textContent = `🏛️ ${venueName}`;
+  
+  loadVenueDetail(venueName);
+}
+
+function goBackFromVenue() {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(`${previousView}-view`).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.view === previousView);
+  });
+  currentVenueName = null;
+}
+
+function getActiveView() {
+  const views = ['calendar', 'map', 'partners', 'encyclopedia', 'messages', 'publish', 'profile', 'venue'];
+  for (const v of views) {
+    const el = document.getElementById(`${v}-view`);
+    if (el && el.classList.contains('active')) {
+      return v;
+    }
+  }
+  return 'calendar';
+}
+
+async function loadVenueDetail(venueName) {
+  const container = document.getElementById('venueContent');
+  container.innerHTML = '<div style="text-align:center;color:#999;padding:40px;">加载中...</div>';
+  
+  try {
+    const res = await fetch(`${API_BASE}/dances/venues/${encodeURIComponent(venueName)}`);
+    if (!res.ok) {
+      throw new Error('场地不存在');
+    }
+    const venue = await res.json();
+    renderVenueDetail(venue);
+  } catch (e) {
+    console.error('加载场地详情失败:', e);
+    container.innerHTML = `<div style="text-align:center;color:#999;padding:40px;">加载失败：${e.message}</div>`;
+  }
+}
+
+function renderVenueDetail(venue) {
+  const container = document.getElementById('venueContent');
+  const stats = venue.stats || {};
+  const dances = venue.dances || [];
+  
+  const upcomingDances = dances.filter(d => new Date(d.date) >= new Date());
+  const pastDances = dances.filter(d => new Date(d.date) < new Date());
+  
+  const topStylesHtml = (stats.topStyles && stats.topStyles.length > 0)
+    ? stats.topStyles.map(s => `<span class="venue-style-tag">${s.style} <small>(${s.count}场)</small></span>`).join('')
+    : '<span style="color:#999;">暂无数据</span>';
+  
+  const placeholderImages = [
+    'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+    'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+    'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
+  ];
+  
+  const venuePhotos = `
+    <div class="venue-photos-grid">
+      ${placeholderImages.map((bg, idx) => `
+        <div class="venue-photo-item" style="background:${bg};">
+          <div class="venue-photo-placeholder">
+            <span>🖼️</span>
+            <small>场地照片 ${idx + 1}</small>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  
+  const dancesListHtml = dances.length > 0 ? `
+    <div class="venue-dances-list">
+      ${dances.map(dance => {
+        const dateObj = new Date(dance.date);
+        const dateStr = `${dateObj.getFullYear()}年${dateObj.getMonth() + 1}月${dateObj.getDate()}日`;
+        const weekDay = ['周日','周一','周二','周三','周四','周五','周六'][dateObj.getDay()];
+        const isPast = new Date(dance.date) < new Date();
+        const styleTags = dance.styles.map(s => 
+          `<span class="style-tag style-${s.toLowerCase()}">${s}</span>`
+        ).join('');
+        
+        return `
+          <div class="venue-dance-item" data-dance-id="${dance.id}" onclick="showDanceDetail(${dance.id})">
+            <div class="venue-dance-header">
+              <h4>${dance.title}</h4>
+              <span class="venue-dance-badge ${isPast ? 'badge-past' : 'badge-upcoming'}">${isPast ? '已结束' : '即将开始'}</span>
+            </div>
+            <div class="venue-dance-meta">
+              <span>📅 ${dateStr} ${weekDay}</span>
+              <span>⏰ ${dance.startTime} - ${dance.endTime}</span>
+              <span>💰 ¥${dance.price}</span>
+            </div>
+            <div class="venue-dance-stats">
+              <span>👁 ${dance.viewCount}</span>
+              <span>👥 ${dance.attendeeCount}${dance.maxAttendees ? `/${dance.maxAttendees}` : ''}</span>
+              <div class="venue-dance-styles">${styleTags}</div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '<div style="text-align:center;color:#999;padding:40px;">暂无舞会记录</div>';
+  
+  const mapLat = venue.latitude || 31.2304;
+  const mapLng = venue.longitude || 121.4737;
+  
+  container.innerHTML = `
+    <div class="venue-detail-container">
+      <div class="venue-main-info">
+        <div class="venue-info-card">
+          <div class="venue-info-title">
+            <h2>${venue.name}</h2>
+            <div class="venue-info-badge">共举办 ${stats.danceCount || 0} 场舞会</div>
+          </div>
+          <div class="venue-info-desc">${venue.description || '暂无场地介绍'}</div>
+          <div class="venue-info-grid">
+            <div class="venue-info-item">
+              <span class="venue-info-icon">📍</span>
+              <div>
+                <div class="venue-info-label">详细地址</div>
+                <div class="venue-info-value">${venue.city} · ${venue.address}</div>
+              </div>
+            </div>
+            <div class="venue-info-item">
+              <span class="venue-info-icon">👥</span>
+              <div>
+                <div class="venue-info-label">可容纳人数</div>
+                <div class="venue-info-value">${venue.capacity || 100} 人</div>
+              </div>
+            </div>
+            <div class="venue-info-item">
+              <span class="venue-info-icon">🎭</span>
+              <div>
+                <div class="venue-info-label">主办方</div>
+                <div class="venue-info-value">${venue.organizer || '-'}</div>
+              </div>
+            </div>
+            <div class="venue-info-item">
+              <span class="venue-info-icon">💵</span>
+              <div>
+                <div class="venue-info-label">平均票价</div>
+                <div class="venue-info-value">¥${stats.avgPrice || 0}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="venue-stats-card">
+          <h3>📊 数据统计</h3>
+          <div class="venue-stats-grid">
+            <div class="venue-stat-card stat-total">
+              <div class="venue-stat-number">${stats.danceCount || 0}</div>
+              <div class="venue-stat-label">累计举办舞会</div>
+            </div>
+            <div class="venue-stat-card stat-upcoming">
+              <div class="venue-stat-number">${stats.upcomingDances || 0}</div>
+              <div class="venue-stat-label">即将开始</div>
+            </div>
+            <div class="venue-stat-card stat-past">
+              <div class="venue-stat-number">${stats.pastDances || 0}</div>
+              <div class="venue-stat-label">已结束</div>
+            </div>
+            <div class="venue-stat-card stat-views">
+              <div class="venue-stat-number">${(stats.totalViews || 0).toLocaleString()}</div>
+              <div class="venue-stat-label">总浏览量</div>
+            </div>
+            <div class="venue-stat-card stat-attendees">
+              <div class="venue-stat-number">${(stats.totalAttendees || 0).toLocaleString()}</div>
+              <div class="venue-stat-label">总参与人次</div>
+            </div>
+            <div class="venue-stat-card stat-price">
+              <div class="venue-stat-number">¥${stats.avgPrice || 0}</div>
+              <div class="venue-stat-label">平均票价</div>
+            </div>
+          </div>
+          <div class="venue-top-styles">
+            <div class="venue-top-styles-title">🔥 热门舞种</div>
+            <div class="venue-top-styles-list">${topStylesHtml}</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="venue-section">
+        <h3>📸 场地照片</h3>
+        ${venuePhotos}
+      </div>
+      
+      <div class="venue-section">
+        <h3>📍 地图定位</h3>
+        <div class="venue-map-container">
+          <div class="venue-map-placeholder">
+            <div class="venue-map-marker" style="
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -100%);
+              font-size: 32px;
+            ">📍</div>
+            <div class="venue-map-coords">
+              <span>纬度: ${mapLat.toFixed(4)}</span>
+              <span>经度: ${mapLng.toFixed(4)}</span>
+            </div>
+            <div class="venue-map-address">
+              ${venue.address}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="venue-section">
+        <div class="venue-section-header">
+          <h3>🎭 在该场地举办的舞会 (${dances.length})</h3>
+          <div class="venue-tabs">
+            <button class="venue-tab active" data-tab="all">全部 (${dances.length})</button>
+            <button class="venue-tab" data-tab="upcoming">即将开始 (${upcomingDances.length})</button>
+            <button class="venue-tab" data-tab="past">已结束 (${pastDances.length})</button>
+          </div>
+        </div>
+        <div id="venueDancesContainer">
+          ${dancesListHtml}
+        </div>
+      </div>
+    </div>
+  `;
+  
+  const venueTabs = container.querySelectorAll('.venue-tab');
+  venueTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      venueTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const tabType = tab.dataset.tab;
+      let filteredDances = [];
+      if (tabType === 'all') {
+        filteredDances = dances;
+      } else if (tabType === 'upcoming') {
+        filteredDances = upcomingDances;
+      } else {
+        filteredDances = pastDances;
+      }
+      renderVenueDancesList(filteredDances);
+    });
+  });
+  
+  container.querySelectorAll('.venue-dance-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const danceId = parseInt(item.dataset.danceId);
+      showDanceDetail(danceId);
+    });
+  });
+}
+
+function renderVenueDancesList(dances) {
+  const container = document.getElementById('venueDancesContainer');
+  if (!container) return;
+  
+  if (dances.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:#999;padding:40px;">暂无舞会记录</div>';
+    return;
+  }
+  
+  container.innerHTML = `
+    <div class="venue-dances-list">
+      ${dances.map(dance => {
+        const dateObj = new Date(dance.date);
+        const dateStr = `${dateObj.getFullYear()}年${dateObj.getMonth() + 1}月${dateObj.getDate()}日`;
+        const weekDay = ['周日','周一','周二','周三','周四','周五','周六'][dateObj.getDay()];
+        const isPast = new Date(dance.date) < new Date();
+        const styleTags = dance.styles.map(s => 
+          `<span class="style-tag style-${s.toLowerCase()}">${s}</span>`
+        ).join('');
+        
+        return `
+          <div class="venue-dance-item" data-dance-id="${dance.id}">
+            <div class="venue-dance-header">
+              <h4>${dance.title}</h4>
+              <span class="venue-dance-badge ${isPast ? 'badge-past' : 'badge-upcoming'}">${isPast ? '已结束' : '即将开始'}</span>
+            </div>
+            <div class="venue-dance-meta">
+              <span>📅 ${dateStr} ${weekDay}</span>
+              <span>⏰ ${dance.startTime} - ${dance.endTime}</span>
+              <span>💰 ¥${dance.price}</span>
+            </div>
+            <div class="venue-dance-stats">
+              <span>👁 ${dance.viewCount}</span>
+              <span>👥 ${dance.attendeeCount}${dance.maxAttendees ? `/${dance.maxAttendees}` : ''}</span>
+              <div class="venue-dance-styles">${styleTags}</div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+  
+  container.querySelectorAll('.venue-dance-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const danceId = parseInt(item.dataset.danceId);
+      showDanceDetail(danceId);
     });
   });
 }
@@ -412,6 +738,8 @@ function createDanceCard(dance) {
   const favoriteClass = isFavorited ? 'favorited' : '';
   const favoriteIcon = isFavorited ? '❤️' : '🤍';
   
+  const venueLink = `<span class="venue-link" data-venue="${encodeURIComponent(dance.venue)}" onclick="event.stopPropagation(); goToVenuePage('${encodeURIComponent(dance.venue)}')">${dance.venue}</span>`;
+  
   return `
     <div class="dance-card" data-id="${dance.id}">
       <div class="dance-card-header">
@@ -420,7 +748,7 @@ function createDanceCard(dance) {
       </div>
       <div class="dance-card-body">
         <div class="dance-card-meta">
-          <div>📍 ${dance.venue}</div>
+          <div>📍 ${venueLink}</div>
           <div>🏙️ ${dance.city} · 📍 ${dance.address}</div>
         </div>
         <div class="dance-styles">${styleTags}</div>
@@ -636,13 +964,15 @@ async function showDanceDetail(id) {
     const favoriteBtnText = isFavorited ? '❤️ 已收藏' : '🤍 收藏';
     const favoriteBtnClass = isFavorited ? 'btn-favorited' : '';
     
+    const venueLinkDetail = `<span class="venue-link" onclick="closeModal(); goToVenuePage('${encodeURIComponent(dance.venue)}')">${dance.venue}</span>`;
+    
     document.getElementById('modalBody').innerHTML = `
       <div class="modal-dance-header">
         <h2>${dance.title}</h2>
         <div class="modal-dance-time">${dateStr} ${weekDay} ${dance.startTime} - ${dance.endTime}</div>
       </div>
       <div class="modal-dance-info">
-        <div><span class="info-label">场地:</span> ${dance.venue}</div>
+        <div><span class="info-label">场地:</span> ${venueLinkDetail}</div>
         <div><span class="info-label">城市:</span> ${dance.city}</div>
         <div><span class="info-label">地址:</span> ${dance.address}</div>
         <div><span class="info-label">主办方:</span> ${dance.organizer}</div>

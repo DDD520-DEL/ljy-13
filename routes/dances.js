@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../data/database');
 
-let { SUPPORTED_CITIES, dances, getNextDanceId, isRegistered, addRegistration, removeRegistration, getRegisteredUsers, isRegistrationFull, isRegistrationClosed, getUserRegisteredDances, addNotification, isFavorited, addFavorite, removeFavorite, getFavoriteCount, getFavoritesByUser, checkins, isCheckedIn, checkIn, checkAndAwardBadges, getUserBadges } = db;
+let { SUPPORTED_CITIES, dances, getNextDanceId, isRegistered, addRegistration, removeRegistration, getRegisteredUsers, isRegistrationFull, isRegistrationClosed, getUserRegisteredDances, addNotification, isFavorited, addFavorite, removeFavorite, getFavoriteCount, getFavoritesByUser, checkins, isCheckedIn, checkIn, checkAndAwardBadges, getUserBadges, getAllVenues, getVenueByName, getVenueDances, getVenueStats } = db;
 
 router.get('/cities', (req, res) => {
   res.json(SUPPORTED_CITIES);
@@ -365,6 +365,78 @@ router.post('/:id/checkin', (req, res) => {
     checkin: result,
     newlyEarnedBadges: newBadges
   });
+});
+
+router.get('/venues/list', (req, res) => {
+  const { city } = req.query;
+  let venues = getAllVenues();
+  if (city) {
+    venues = venues.filter(v => v.city === city);
+  }
+  res.json(venues.map(v => ({
+    name: v.name,
+    address: v.address,
+    city: v.city,
+    latitude: v.latitude,
+    longitude: v.longitude,
+    capacity: v.capacity,
+    danceCount: v.danceCount
+  })));
+});
+
+router.get('/venues/:name', (req, res) => {
+  const venueName = decodeURIComponent(req.params.name);
+  const venue = getVenueByName(venueName);
+  
+  if (!venue) {
+    return res.status(404).json({ error: '场地不存在' });
+  }
+  
+  const stats = getVenueStats(venueName);
+  const dancesAtVenue = getVenueDances(venueName);
+  
+  res.json({
+    name: venue.name,
+    address: venue.address,
+    city: venue.city,
+    latitude: venue.latitude,
+    longitude: venue.longitude,
+    organizer: venue.organizer,
+    capacity: venue.capacity,
+    description: venue.description,
+    stats: stats,
+    dances: dancesAtVenue
+  });
+});
+
+router.get('/venues/:name/dances', (req, res) => {
+  const venueName = decodeURIComponent(req.params.name);
+  const venue = getVenueByName(venueName);
+  
+  if (!venue) {
+    return res.status(404).json({ error: '场地不存在' });
+  }
+  
+  const { userId } = req.query;
+  const dancesAtVenue = getVenueDances(venueName).map(dance => ({
+    ...dance,
+    isFavorited: userId ? isFavorited(parseInt(userId), dance.id) : false,
+    favoriteCount: getFavoriteCount(dance.id)
+  }));
+  
+  res.json(dancesAtVenue);
+});
+
+router.get('/venues/:name/stats', (req, res) => {
+  const venueName = decodeURIComponent(req.params.name);
+  const venue = getVenueByName(venueName);
+  
+  if (!venue) {
+    return res.status(404).json({ error: '场地不存在' });
+  }
+  
+  const stats = getVenueStats(venueName);
+  res.json(stats);
 });
 
 module.exports = router;

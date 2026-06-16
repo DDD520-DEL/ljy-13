@@ -1600,6 +1600,124 @@ function getUserDanceStats(userId) {
   };
 }
 
+const venueCapacityMap = {
+  "热情拉丁舞厅": 120,
+  "城市舞蹈中心": 80,
+  "阳光艺术空间": 100,
+  "星空舞蹈俱乐部": 150,
+  "棕榈树酒吧": 200,
+  "国贸拉丁俱乐部": 100,
+  "三里屯艺术中心": 90,
+  "北京舞蹈学院活动中心": 70,
+  "广州塔江畔舞厅": 160,
+  "天河体育中心舞蹈厅": 110,
+  "海岸城购物中心舞蹈厅": 120,
+  "福田CBD文化中心": 90,
+  "锦里古街文化中心": 100,
+  "春熙路IFS舞蹈中心": 140,
+  "西湖文化广场舞蹈厅": 100,
+  "钱江新城文化中心": 80
+};
+
+const venueDescriptionMap = {
+  "热情拉丁舞厅": "专业的拉丁舞蹈场地，配备顶级音响灯光系统，舞池面积宽敞，是上海莎莎舞爱好者的聚集地。",
+  "城市舞蹈中心": "综合性舞蹈培训机构，拥有多个专业舞蹈厅，定期举办各类舞蹈工作坊和社交舞会。",
+  "阳光艺术空间": "温馨舒适的艺术空间，以周日下午社交舞会闻名，特别适合新手入门练习。",
+  "星空舞蹈俱乐部": "陆家嘴高端舞蹈俱乐部，夜景迷人，是进阶舞者交流的首选场地。",
+  "棕榈树酒吧": "热带风情主题酒吧，每月举办大型主题派对，现场乐队演奏，氛围热烈。",
+  "国贸拉丁俱乐部": "北京CBD商圈专业拉丁舞厅，灯光音响一流，商务人士社交首选。",
+  "三里屯艺术中心": "潮流聚集地，年轻舞者的天堂，Bachata爱好者的周末据点。",
+  "北京舞蹈学院活动中心": "专业舞蹈院校场地，地板专业，适合各种风格的系统学习和训练。",
+  "广州塔江畔舞厅": "珠江边的浪漫舞厅，江景无敌，夜景下跳舞别有一番风味。",
+  "天河体育中心舞蹈厅": "交通便利的大型舞蹈场地，新手友好，经常举办免费体验课程。",
+  "海岸城购物中心舞蹈厅": "南山商圈核心位置，购物休闲跳舞一站式体验，年轻人聚集地。",
+  "福田CBD文化中心": "深圳白领社交舞据点，工作之余放松身心的好去处。",
+  "锦里古街文化中心": "成都古街风情，传统与现代的完美融合，别具一格的舞会体验。",
+  "春熙路IFS舞蹈中心": "成都最繁华商圈，高颜值聚集地，周末狂欢的不二选择。",
+  "西湖文化广场舞蹈厅": "西湖边的浪漫空间，环境优美，适合轻松社交。",
+  "钱江新城文化中心": "杭州新城区CBD，现代化设施，白领社交舞会首选。"
+};
+
+function getAllVenues() {
+  const venueMap = {};
+  
+  dances.forEach(dance => {
+    const key = dance.venue;
+    if (!venueMap[key]) {
+      venueMap[key] = {
+        name: dance.venue,
+        address: dance.address,
+        city: dance.city,
+        latitude: dance.latitude,
+        longitude: dance.longitude,
+        organizer: dance.organizer,
+        capacity: venueCapacityMap[dance.venue] || 100,
+        description: venueDescriptionMap[dance.venue] || '优质舞蹈场地，欢迎前来体验！',
+        danceCount: 0,
+        dances: [],
+        totalAttendees: 0,
+        totalViews: 0,
+        avgPrice: 0
+      };
+    }
+    venueMap[key].danceCount++;
+    venueMap[key].dances.push(dance);
+    venueMap[key].totalAttendees += dance.attendeeCount;
+    venueMap[key].totalViews += dance.viewCount;
+    venueMap[key].avgPrice += dance.price;
+  });
+  
+  Object.values(venueMap).forEach(v => {
+    if (v.danceCount > 0) {
+      v.avgPrice = Math.round(v.avgPrice / v.danceCount);
+    }
+    v.dances.sort((a, b) => new Date(b.date) - new Date(a.date));
+  });
+  
+  return Object.values(venueMap);
+}
+
+function getVenueByName(venueName) {
+  const allVenues = getAllVenues();
+  return allVenues.find(v => v.name === venueName) || null;
+}
+
+function getVenueDances(venueName) {
+  return dances
+    .filter(d => d.venue === venueName)
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+function getVenueStats(venueName) {
+  const venueDances = getVenueDances(venueName);
+  const totalAttendees = venueDances.reduce((sum, d) => sum + d.attendeeCount, 0);
+  const totalViews = venueDances.reduce((sum, d) => sum + d.viewCount, 0);
+  const avgPrice = venueDances.length > 0 
+    ? Math.round(venueDances.reduce((sum, d) => sum + d.price, 0) / venueDances.length) 
+    : 0;
+  
+  const styleCount = {};
+  venueDances.forEach(d => {
+    d.styles.forEach(s => {
+      styleCount[s] = (styleCount[s] || 0) + 1;
+    });
+  });
+  const topStyles = Object.entries(styleCount)
+    .map(([style, count]) => ({ style, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+  
+  return {
+    danceCount: venueDances.length,
+    totalAttendees,
+    totalViews,
+    avgPrice,
+    topStyles,
+    upcomingDances: venueDances.filter(d => new Date(d.date) >= new Date()).length,
+    pastDances: venueDances.filter(d => new Date(d.date) < new Date()).length
+  };
+}
+
 module.exports = {
   SUPPORTED_CITIES,
   dances,
@@ -1670,5 +1788,9 @@ module.exports = {
   getUserBadges,
   hasBadge,
   awardBadge,
-  checkAndAwardBadges
+  checkAndAwardBadges,
+  getAllVenues,
+  getVenueByName,
+  getVenueDances,
+  getVenueStats
 };
