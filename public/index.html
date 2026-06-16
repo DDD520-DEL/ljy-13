@@ -555,6 +555,48 @@
 
   <div id="toast" class="toast"></div>
 
+  <button id="feedbackFloatBtn" class="feedback-float-btn" title="意见反馈">
+    <span class="feedback-float-icon">💬</span>
+    <span class="feedback-float-text">反馈</span>
+  </button>
+
+  <div id="feedbackModal" class="feedback-modal">
+    <div class="feedback-modal-content">
+      <div class="feedback-modal-header">
+        <h3>📝 意见反馈</h3>
+        <span class="feedback-close-btn" id="feedbackCloseBtn">&times;</span>
+      </div>
+      <form id="feedbackForm" class="feedback-form">
+        <div class="form-group">
+          <label>反馈类型 <span class="required">*</span></label>
+          <div class="feedback-type-group">
+            <label class="feedback-type-option">
+              <input type="radio" name="type" value="功能建议" required>
+              <span class="feedback-type-label">💡 功能建议</span>
+            </label>
+            <label class="feedback-type-option">
+              <input type="radio" name="type" value="Bug反馈" required>
+              <span class="feedback-type-label">🐛 Bug反馈</span>
+            </label>
+            <label class="feedback-type-option">
+              <input type="radio" name="type" value="使用体验" required>
+              <span class="feedback-type-label">😊 使用体验</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>反馈内容 <span class="required">*</span></label>
+          <textarea name="content" id="feedbackContent" rows="5" placeholder="请详细描述您的反馈，我们会认真对待每一条建议..." required maxlength="500"></textarea>
+          <div class="char-count"><span id="feedbackCharCount">0</span>/500</div>
+        </div>
+        <div class="feedback-form-actions">
+          <button type="button" class="btn btn-secondary" id="feedbackCancelBtn">取消</button>
+          <button type="submit" class="btn btn-primary" id="feedbackSubmitBtn">提交反馈</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="messageToastBar" class="message-toast-bar">
     <div class="message-toast-content">
       <span class="message-toast-icon">💬</span>

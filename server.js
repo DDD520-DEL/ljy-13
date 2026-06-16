@@ -11,6 +11,7 @@ const notificationsRouter = require('./routes/notifications');
 const commentsRouter = require('./routes/comments');
 const messagesRouter = require('./routes/messages');
 const statsRouter = require('./routes/stats');
+const feedbackRouter = require('./routes/feedback');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -29,6 +30,7 @@ app.use('/api/notifications', notificationsRouter);
 app.use('/api/comments', commentsRouter);
 app.use('/api/messages', messagesRouter);
 app.use('/api/stats', statsRouter);
+app.use('/api/feedback', feedbackRouter);
 
 app.get('/api', (req, res) => {
   res.json({

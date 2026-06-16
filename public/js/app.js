@@ -100,6 +100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initVenueView();
   initHelpCenter();
   initStatsDashboard();
+  initFeedback();
   await initCities();
   loadUsers();
   loadDances();
@@ -4780,4 +4781,100 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+function initFeedback() {
+  const floatBtn = document.getElementById('feedbackFloatBtn');
+  const modal = document.getElementById('feedbackModal');
+  const closeBtn = document.getElementById('feedbackCloseBtn');
+  const cancelBtn = document.getElementById('feedbackCancelBtn');
+  const form = document.getElementById('feedbackForm');
+  const contentInput = document.getElementById('feedbackContent');
+  const charCount = document.getElementById('feedbackCharCount');
+
+  if (!floatBtn || !modal) return;
+
+  floatBtn.addEventListener('click', () => {
+    modal.classList.add('active');
+  });
+
+  const closeModal = () => {
+    modal.classList.remove('active');
+    form.reset();
+    if (charCount) charCount.textContent = '0';
+  };
+
+  closeBtn.addEventListener('click', closeModal);
+  cancelBtn.addEventListener('click', closeModal);
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      closeModal();
+    }
+  });
+
+  if (contentInput && charCount) {
+    contentInput.addEventListener('input', () => {
+      charCount.textContent = contentInput.value.length;
+    });
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const submitBtn = document.getElementById('feedbackSubmitBtn');
+    const formData = new FormData(form);
+    const type = formData.get('type');
+    const content = formData.get('content');
+
+    if (!type) {
+      showToast('请选择反馈类型', 'error');
+      return;
+    }
+
+    if (!content || content.trim().length === 0) {
+      showToast('请输入反馈内容', 'error');
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = '提交中...';
+    }
+
+    try {
+      const payload = {
+        type,
+        content: content.trim()
+      };
+
+      if (currentUser) {
+        payload.userId = currentUser.id;
+      }
+
+      const res = await fetch(`${API_BASE}/feedback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        showToast('感谢反馈！我们会认真处理您的意见', 'success');
+        closeModal();
+      } else {
+        const data = await res.json();
+        showToast(data.error || '提交失败，请稍后重试', 'error');
+      }
+    } catch (err) {
+      console.error('提交反馈失败:', err);
+      showToast('提交失败，请稍后重试', 'error');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '提交反馈';
+      }
+    }
+  });
 }

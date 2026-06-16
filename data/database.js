@@ -815,6 +815,8 @@ let reviews = [
   }
 ];
 
+let feedbacks = [];
+
 let follows = [
   {
     id: 1,
@@ -1033,6 +1035,7 @@ let nextFavoriteId = 5;
 let nextConversationId = 3;
 let nextMessageId = 9;
 let nextCheckinId = 13;
+let nextFeedbackId = 1;
 
 let checkins = [
   { id: 1, danceId: 17, userId: 1, checkedInAt: "2026-01-10T20:15:00Z" },
@@ -1718,6 +1721,45 @@ function getVenueStats(venueName) {
   };
 }
 
+const VALID_FEEDBACK_TYPES = ['功能建议', 'Bug反馈', '使用体验'];
+
+function addFeedback(feedback) {
+  const { type, content, userId } = feedback;
+  
+  if (!VALID_FEEDBACK_TYPES.includes(type)) {
+    return { success: false, error: '无效的反馈类型' };
+  }
+  
+  if (!content || content.trim().length === 0) {
+    return { success: false, error: '反馈内容不能为空' };
+  }
+  
+  const newFeedback = {
+    id: nextFeedbackId++,
+    type,
+    content: content.trim(),
+    userId: userId || null,
+    createdAt: new Date().toISOString()
+  };
+  
+  feedbacks.push(newFeedback);
+  return { success: true, feedback: newFeedback };
+}
+
+function getFeedbacks(filter = {}) {
+  let result = [...feedbacks];
+  
+  if (filter.type) {
+    result = result.filter(f => f.type === filter.type);
+  }
+  
+  if (filter.userId) {
+    result = result.filter(f => f.userId === parseInt(filter.userId));
+  }
+  
+  return result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
 function getPlatformStats() {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -1794,6 +1836,8 @@ module.exports = {
   users,
   invitations,
   reviews,
+  feedbacks,
+  VALID_FEEDBACK_TYPES,
   follows,
   notifications,
   danceRegistrations,
@@ -1805,6 +1849,9 @@ module.exports = {
   getNextUserId: () => nextUserId++,
   getNextInvitationId: () => nextInvitationId++,
   getNextReviewId: () => nextReviewId++,
+  getNextFeedbackId: () => nextFeedbackId++,
+  addFeedback,
+  getFeedbacks,
   isFollowing,
   isMutualFollowing,
   getFollowers,
