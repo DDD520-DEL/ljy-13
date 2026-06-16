@@ -965,17 +965,20 @@ async function showDanceDetail(id) {
     const danceRes = await fetch(url);
     const dance = await danceRes.json();
     
-    const [avgRes, reviewsRes, registeredUsersRes, commentsRes] = await Promise.all([
+    const [avgRes, reviewsRes, registeredUsersRes, commentsRes, playlistRes] = await Promise.all([
       fetch(`${API_BASE}/reviews/dance/${id}/average`),
       fetch(`${API_BASE}/reviews?danceId=${id}`),
       fetch(`${API_BASE}/dances/${id}/registered-users`),
-      loadDanceComments(id, currentCommentSort)
+      loadDanceComments(id, currentCommentSort),
+      fetch(`${API_BASE}/dances/${id}/playlist`)
     ]);
     
     const averages = await avgRes.json();
     const reviews = await reviewsRes.json();
     const registeredUsers = await registeredUsersRes.json();
     const commentData = commentsRes;
+    const playlistData = await playlistRes.json();
+    const allPlaylistSongs = playlistData.songs || [];
     
     const userReview = currentUser 
       ? reviews.find(r => r.userId === currentUser.id) 
@@ -1143,6 +1146,9 @@ async function showDanceDetail(id) {
     
     const venueLinkDetail = `<span class="venue-link" onclick="closeModal(); goToVenuePage('${encodeURIComponent(dance.venue)}')">${dance.venue}</span>`;
     
+    currentPlaylistFilter = 'all';
+    const playlistSectionHtml = renderPlaylistSection(dance.id, allPlaylistSongs, dance.styles);
+    
     document.getElementById('modalBody').innerHTML = `
       <div class="modal-dance-header">
         <h2>${dance.title}</h2>
@@ -1165,6 +1171,7 @@ async function showDanceDetail(id) {
       ${registeredUsersHtml}
       ${ratingsHtml}
       ${reviewsHtml}
+      ${playlistSectionHtml}
       ${commentsSectionHtml}
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
@@ -1178,6 +1185,7 @@ async function showDanceDetail(id) {
     
     document.getElementById('danceModal').classList.add('active');
     bindCommentEvents(dance.id);
+    bindPlaylistEvents(dance.id, allPlaylistSongs, dance.styles);
   } catch (e) {
     console.error('加载舞会详情失败:', e);
     showToast('加载失败', 'error');
@@ -1186,6 +1194,135 @@ async function showDanceDetail(id) {
 
 function closeModal() {
   document.getElementById('danceModal').classList.remove('active');
+}
+
+let currentPlaylistFilter = 'all';
+
+function renderPlaylistSection(danceId, songs, danceStyles) {
+  if (!songs || songs.length === 0) {
+    return `
+      <div class="playlist-section">
+        <h4>🎵 当晚预计舞曲</h4>
+        <div class="playlist-empty">暂无舞曲信息</div>
+      </div>
+    `;
+  }
+
+  const styleFilters = ['all', ...danceStyles.filter(s => ['Cuban', 'LA', 'NY', 'Bachata'].includes(s))];
+  
+  const filteredSongs = currentPlaylistFilter === 'all' 
+    ? songs 
+    : songs.filter(s => s.style === currentPlaylistFilter);
+
+  const totalDuration = calculateTotalDuration(filteredSongs);
+
+  return `
+    <div class="playlist-section">
+      <div class="playlist-header">
+        <h4>🎵 当晚预计舞曲</h4>
+        <div class="playlist-summary">
+          <span>${filteredSongs.length} 首歌</span>
+          <span class="playlist-duration">约 ${totalDuration}</span>
+        </div>
+      </div>
+      <div class="playlist-filters" id="playlistFilters">
+        ${styleFilters.map(style => `
+          <button class="playlist-filter-btn ${currentPlaylistFilter === style ? 'active' : ''}" 
+                  data-style="${style}"
+                  onclick="filterPlaylist('${style}', ${danceId})">
+            ${style === 'all' ? '全部' : style}
+          </button>
+        `).join('')}
+      </div>
+      <div class="playlist-list" id="playlistList">
+        ${filteredSongs.map((song, index) => `
+          <div class="playlist-item" data-style="${song.style}">
+            <div class="playlist-item-index">${index + 1}</div>
+            <div class="playlist-item-info">
+              <div class="playlist-item-title">${song.title}</div>
+              <div class="playlist-item-artist">${song.artist}</div>
+            </div>
+            <div class="playlist-item-right">
+              <span class="style-tag style-${song.style.toLowerCase()}">${song.style}</span>
+              <span class="playlist-item-duration">${song.duration}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function calculateTotalDuration(songs) {
+  let totalSeconds = 0;
+  songs.forEach(song => {
+    const parts = song.duration.split(':');
+    totalSeconds += parseInt(parts[0]) * 60 + parseInt(parts[1]);
+  });
+  const minutes = Math.floor(totalSeconds / 60);
+  return `${minutes} 分钟`;
+}
+
+function filterPlaylist(style, danceId) {
+  currentPlaylistFilter = style;
+  loadAndRenderPlaylist(danceId);
+}
+
+async function loadAndRenderPlaylist(danceId) {
+  try {
+    const url = currentPlaylistFilter === 'all'
+      ? `${API_BASE}/dances/${danceId}/playlist`
+      : `${API_BASE}/dances/${danceId}/playlist?style=${currentPlaylistFilter}`;
+    
+    const res = await fetch(url);
+    const data = await res.json();
+    
+    const playlistList = document.getElementById('playlistList');
+    const playlistFilters = document.getElementById('playlistFilters');
+    
+    if (playlistList && data.songs) {
+      const dance = await fetch(`${API_BASE}/dances/${danceId}`).then(r => r.json());
+      const filteredSongs = data.songs;
+      const totalDuration = calculateTotalDuration(filteredSongs);
+      
+      playlistList.innerHTML = filteredSongs.map((song, index) => `
+        <div class="playlist-item" data-style="${song.style}">
+          <div class="playlist-item-index">${index + 1}</div>
+          <div class="playlist-item-info">
+            <div class="playlist-item-title">${song.title}</div>
+            <div class="playlist-item-artist">${song.artist}</div>
+          </div>
+          <div class="playlist-item-right">
+            <span class="style-tag style-${song.style.toLowerCase()}">${song.style}</span>
+            <span class="playlist-item-duration">${song.duration}</span>
+          </div>
+        </div>
+      `).join('');
+
+      const summaryEl = document.querySelector('.playlist-summary');
+      if (summaryEl) {
+        summaryEl.innerHTML = `
+          <span>${filteredSongs.length} 首歌</span>
+          <span class="playlist-duration">约 ${totalDuration}</span>
+        `;
+      }
+
+      const filterBtns = document.querySelectorAll('.playlist-filter-btn');
+      filterBtns.forEach(btn => {
+        if (btn.dataset.style === currentPlaylistFilter) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      });
+    }
+  } catch (e) {
+    console.error('加载播放列表失败:', e);
+  }
+}
+
+function bindPlaylistEvents(danceId, songs, danceStyles) {
+  currentPlaylistFilter = 'all';
 }
 
 async function registerForDance(danceId) {

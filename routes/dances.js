@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../data/database');
 
-let { SUPPORTED_CITIES, dances, getNextDanceId, isRegistered, addRegistration, removeRegistration, getRegisteredUsers, isRegistrationFull, isRegistrationClosed, getUserRegisteredDances, addNotification, isFavorited, addFavorite, removeFavorite, getFavoriteCount, getFavoritesByUser, checkins, isCheckedIn, checkIn, checkAndAwardBadges, getUserBadges, getAllVenues, getVenueByName, getVenueDances, getVenueStats } = db;
+let { SUPPORTED_CITIES, dances, getNextDanceId, isRegistered, addRegistration, removeRegistration, getRegisteredUsers, isRegistrationFull, isRegistrationClosed, getUserRegisteredDances, addNotification, isFavorited, addFavorite, removeFavorite, getFavoriteCount, getFavoritesByUser, checkins, isCheckedIn, checkIn, checkAndAwardBadges, getUserBadges, getAllVenues, getVenueByName, getVenueDances, getVenueStats, getPlaylistByDanceId } = db;
 
 router.get('/cities', (req, res) => {
   res.json(SUPPORTED_CITIES);
@@ -85,6 +85,27 @@ router.get('/:id', (req, res) => {
   };
   
   res.json(response);
+});
+
+router.get('/:id/playlist', (req, res) => {
+  const danceId = parseInt(req.params.id);
+  const dance = dances.find(d => d.id === danceId);
+  if (!dance) {
+    return res.status(404).json({ error: '舞会不存在' });
+  }
+  
+  const { style } = req.query;
+  let playlist = getPlaylistByDanceId(danceId);
+  
+  if (style) {
+    playlist = playlist.filter(song => song.style === style);
+  }
+  
+  res.json({
+    danceId,
+    total: playlist.length,
+    songs: playlist
+  });
 });
 
 router.get('/:id/favorite-status', (req, res) => {
