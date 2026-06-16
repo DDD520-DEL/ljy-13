@@ -29,6 +29,7 @@
         </button>
         <button class="nav-btn" data-view="publish">发布舞会</button>
         <button class="nav-btn" data-view="profile">个人中心</button>
+        <button class="nav-btn" data-view="help">❓ 帮助中心</button>
       </nav>
       <div class="header-right">
         <div class="notification-center">
@@ -310,8 +311,44 @@
           <div style="text-align:center;color:#999;padding:40px;">加载中...</div>
         </div>
       </section>
+
+      <section id="help-view" class="view">
+        <div class="view-header">
+          <h2>❓ 帮助中心</h2>
+          <p class="encyclopedia-subtitle">在这里您可以找到常见问题的解答</p>
+        </div>
+        <div class="help-container">
+          <div class="help-search-box">
+            <span class="help-search-icon">🔍</span>
+            <input type="text" id="helpSearchInput" class="help-search-input" placeholder="输入关键词搜索问题，例如：邀约、报名、取消...">
+            <button class="help-search-clear" id="helpSearchClear" style="display:none;">×</button>
+          </div>
+          <div id="helpEmptyResult" class="help-empty-result" style="display:none;">
+            <div class="help-empty-icon">😕</div>
+            <h4>没有找到相关问题</h4>
+            <p>试试其他关键词，或者浏览下方的分类问题</p>
+          </div>
+          <div id="faqContainer" class="faq-container"></div>
+        </div>
+      </section>
     </div>
   </main>
+
+  <footer class="page-footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-item">
+          <button class="footer-help-btn" onclick="scrollToHelp()">
+            <span class="footer-help-icon">❓</span>
+            <span>常见问题帮助中心</span>
+          </button>
+        </div>
+        <div class="footer-item footer-copyright">
+          © 2026 莎莎舞平台 版权所有
+        </div>
+      </div>
+    </div>
+  </footer>
 
   <div id="danceModal" class="modal">
     <div class="modal-content modal-large">

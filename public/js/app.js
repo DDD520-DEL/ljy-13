@@ -98,6 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initEditProfileModal();
   initEncyclopedia();
   initVenueView();
+  initHelpCenter();
   await initCities();
   loadUsers();
   loadDances();
@@ -215,7 +216,7 @@ function goBackFromVenue() {
 }
 
 function getActiveView() {
-  const views = ['calendar', 'map', 'partners', 'encyclopedia', 'messages', 'publish', 'profile', 'venue'];
+  const views = ['calendar', 'map', 'partners', 'encyclopedia', 'messages', 'publish', 'profile', 'venue', 'help'];
   for (const v of views) {
     const el = document.getElementById(`${v}-view`);
     if (el && el.classList.contains('active')) {
@@ -4081,4 +4082,409 @@ function initEncyclopedia() {
       card.classList.toggle('expanded');
     });
   });
+}
+
+/* ========== 帮助中心FAQ数据 ========== */
+
+const FAQ_DATA = [
+  {
+    id: 'invitation',
+    title: '关于邀约',
+    icon: '💌',
+    questions: [
+      {
+        id: 'invite-1',
+        question: '如何发起舞伴邀约？',
+        answer: [
+          '您可以通过以下方式发起舞伴邀约：',
+          '1. 在"舞伴匹配"页面，浏览推荐的舞伴列表，点击舞伴卡片上的"邀约"按钮',
+          '2. 在舞会详情页，点击"邀约舞伴"按钮，选择您想邀请的用户',
+          '3. 填写邀约留言后发送，对方会收到通知',
+          '温馨提示：邀约前建议先查看对方的舞蹈水平和擅长舞种，提高邀约成功率。'
+        ]
+      },
+      {
+        id: 'invite-2',
+        question: '如何查看邀约状态？',
+        answer: [
+          '您可以在以下位置查看邀约状态：',
+          '1. 点击顶部通知铃铛，查看邀约相关的系统通知',
+          '2. 在"个人中心"页面，查看"我的邀约"部分',
+          '3. 邀约状态分为：待接受、已接受、已拒绝、已取消',
+          '当对方接受您的邀约后，你们可以开始私信沟通具体事宜。'
+        ]
+      },
+      {
+        id: 'invite-3',
+        question: '可以取消已经发送的邀约吗？',
+        answer: [
+          '在对方未接受邀约之前，您可以随时取消邀约。',
+          '取消方式：在"个人中心" → "我的邀约"中找到该邀约，点击"取消邀约"按钮。',
+          '如果对方已经接受了邀约，建议通过私信友好沟通后再做决定。'
+        ]
+      },
+      {
+        id: 'invite-4',
+        question: '收到邀约后如何回应？',
+        answer: [
+          '当您收到舞伴邀约时：',
+          '1. 点击通知消息或进入"个人中心" → "收到的邀约"',
+          '2. 查看邀约详情，包括邀约舞会、对方资料和邀约留言',
+          '3. 点击"接受"或"拒绝"按钮进行回应',
+          '4. 如果接受邀约，双方会自动开始私信对话',
+          '建议收到邀约后尽快回复，这是对对方的尊重。'
+        ]
+      }
+    ]
+  },
+  {
+    id: 'dance',
+    title: '关于舞会',
+    icon: '🎉',
+    questions: [
+      {
+        id: 'dance-1',
+        question: '如何报名参加舞会？',
+        answer: [
+          '报名参加舞会非常简单：',
+          '1. 在"舞会日历"或"附近地图"中找到您感兴趣的舞会',
+          '2. 点击舞会卡片查看详情',
+          '3. 点击"我要参加"按钮完成报名',
+          '4. 报名成功后，您会收到系统通知',
+          '请注意：部分舞会有人数上限或报名截止时间，建议尽早报名。'
+        ]
+      },
+      {
+        id: 'dance-2',
+        question: '如何取消报名？',
+        answer: [
+          '您可以在舞会开始前取消报名：',
+          '1. 进入舞会详情页面',
+          '2. 点击"取消报名"按钮',
+          '3. 确认取消操作',
+          '温馨提示：如果舞会即将开始（如24小时内），建议提前联系主办方说明情况。频繁无故取消可能影响您的信用记录。'
+        ]
+      },
+      {
+        id: 'dance-3',
+        question: '舞会人数满了还能报名吗？',
+        answer: [
+          '当舞会报名人数达到上限时，"我要参加"按钮会变为"名额已满"且无法点击。',
+          '建议：',
+          '1. 关注其他类似主题的舞会',
+          '2. 可以偶尔刷新页面，有时会有人取消报名',
+          '3. 点击"收藏"按钮，我们会在有名额释放时优先通知您'
+        ]
+      },
+      {
+        id: 'dance-4',
+        question: '如何发布舞会？',
+        answer: [
+          '如果您是主办方或想组织一场舞会：',
+          '1. 点击顶部导航栏的"发布舞会"按钮',
+          '2. 填写舞会标题、场地、日期时间、舞种风格等信息',
+          '3. 设置票价、人数上限等可选参数',
+          '4. 点击"发布舞会"完成提交',
+          '发布后舞会会立即展示在平台上，用户可以浏览和报名。'
+        ]
+      },
+      {
+        id: 'dance-5',
+        question: '如何评价参加过的舞会？',
+        answer: [
+          '舞会结束后，您可以对舞会进行评价：',
+          '1. 进入舞会详情页面',
+          '2. 点击"评价舞会"按钮',
+          '3. 分别对场地环境、音乐质量、组织水平进行星级评分',
+          '4. 可以填写文字评价分享您的体验',
+          '您的评价对其他舞者很有参考价值，也能帮助主办方改进。'
+        ]
+      }
+    ]
+  },
+  {
+    id: 'account',
+    title: '账号相关',
+    icon: '👤',
+    questions: [
+      {
+        id: 'account-1',
+        question: '如何编辑个人资料？',
+        answer: [
+          '编辑个人资料步骤：',
+          '1. 进入"个人中心"页面',
+          '2. 点击"编辑资料"按钮',
+          '3. 修改您的昵称、舞龄、角色、水平、城市等信息',
+          '4. 设置您擅长的舞种及熟练度权重',
+          '5. 点击"保存修改"完成',
+          '完善的个人资料能帮助其他舞者更好地了解您，提高匹配成功率。'
+        ]
+      },
+      {
+        id: 'account-2',
+        question: '舞种熟练度权重是什么意思？',
+        answer: [
+          '舞种熟练度权重（0-100%）表示您对每种舞蹈的掌握程度：',
+          '• 0-30%：入门级，正在学习中',
+          '• 30-60%：中级，可以流畅跳基本步',
+          '• 60-90%：高级，可以跳复杂花样',
+          '• 90-100%：专业级，教学或表演水平',
+          '设置准确的权重可以提高舞伴匹配的精准度，建议根据实际水平如实填写。'
+        ]
+      },
+      {
+        id: 'account-3',
+        question: '如何切换当前身份？',
+        answer: [
+          '您可以随时切换当前登录身份：',
+          '1. 在页面右上角找到身份选择下拉框',
+          '2. 点击下拉框选择您想使用的身份',
+          '3. 切换后系统会自动刷新数据',
+          '不同身份有独立的报名记录、收藏列表和消息记录。'
+        ]
+      },
+      {
+        id: 'account-4',
+        question: '如何使用收藏功能？',
+        answer: [
+          '收藏功能可以帮助您关注感兴趣的舞会：',
+          '1. 在舞会卡片上点击🤍按钮即可收藏',
+          '2. 再次点击❤️按钮可取消收藏',
+          '3. 在"个人中心"可以查看所有已收藏的舞会',
+          '4. 收藏的舞会有名额释放或临近开始时，您会收到提醒通知',
+          '善用收藏功能，不错过任何精彩舞会！'
+        ]
+      }
+    ]
+  },
+  {
+    id: 'social',
+    title: '社交功能',
+    icon: '💬',
+    questions: [
+      {
+        id: 'social-1',
+        question: '如何发送私信？',
+        answer: [
+          '有两种方式可以发送私信：',
+          '1. 在"舞伴匹配"页面，点击舞伴卡片上的"发私信"按钮',
+          '2. 在"私信中心"页面，选择一个已有对话继续',
+          '发送消息后，对方会收到新消息提醒。支持文字消息，按Enter发送，Shift+Enter换行。'
+        ]
+      },
+      {
+        id: 'social-2',
+        question: '如何关注其他舞者？',
+        answer: [
+          '关注功能可以让您及时了解喜欢的舞者动态：',
+          '1. 在舞伴卡片上点击"关注"按钮',
+          '2. 关注后按钮变为"已关注"',
+          '3. 在"个人中心"的"关注"标签页查看您关注的人',
+          '4. 在"粉丝"标签页查看关注您的人',
+          '互相关注后会显示"互相关注"标识。'
+        ]
+      },
+      {
+        id: 'social-3',
+        question: '如何查看通知？',
+        answer: [
+          '点击顶部导航栏的🔔铃铛图标可以查看所有通知：',
+          '• 邀约状态变更通知',
+          '• 私信提醒',
+          '• 舞会报名成功提醒',
+          '• 收藏舞会的动态通知',
+          '• 系统公告',
+          '未读通知会有蓝色标记，点击"全部已读"可一键标记所有通知为已读。'
+        ]
+      }
+    ]
+  },
+  {
+    id: 'platform',
+    title: '平台使用',
+    icon: '🔧',
+    questions: [
+      {
+        id: 'platform-1',
+        question: '如何切换城市？',
+        answer: [
+          '平台支持多城市切换：',
+          '1. 点击页面顶部的城市选择器',
+          '2. 从下拉列表中选择您所在的城市',
+          '3. 切换后，舞会日历、附近地图等内容会自动更新为该城市的数据',
+          '目前支持上海、北京、广州、深圳等主要城市，更多城市正在陆续开通中。'
+        ]
+      },
+      {
+        id: 'platform-2',
+        question: '如何使用智能匹配功能？',
+        answer: [
+          '智能匹配会根据您的条件推荐最合适的舞伴：',
+          '1. 进入"舞伴匹配"页面',
+          '2. 设置筛选条件：舞会、舞种、角色、水平',
+          '3. 点击"智能匹配"按钮',
+          '4. 系统会根据舞种匹配度、水平匹配度等综合计算匹配分数',
+          '匹配分数越高，代表你们跳舞的契合度越好！'
+        ]
+      },
+      {
+        id: 'platform-3',
+        question: '搜索功能如何使用？',
+        answer: [
+          '平台的搜索功能可以帮助您快速找到想要的内容：',
+          '• 在帮助中心顶部的搜索框输入关键词',
+          '• 系统会实时过滤匹配的问题和答案',
+          '• 匹配的关键词会高亮显示',
+          '• 支持模糊搜索，输入部分关键词即可匹配',
+          '例如输入"邀约"可以找到所有与邀约相关的问题。'
+        ]
+      },
+      {
+        id: 'platform-4',
+        question: '分享功能怎么用？',
+        answer: [
+          '您可以将喜欢的舞会分享给朋友：',
+          '1. 在舞会卡片或详情页点击"📤分享"按钮',
+          '2. 系统会自动生成一张精美的分享卡片',
+          '3. 点击"📥保存图片"下载卡片到本地',
+          '4. 将图片分享到微信、朋友圈等社交媒体',
+          '分享卡片包含舞会的关键信息，让朋友一目了然！'
+        ]
+      }
+    ]
+  }
+];
+
+/* ========== 帮助中心功能函数 ========== */
+
+let currentSearchKeyword = '';
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function highlightKeyword(text, keyword) {
+  if (!keyword) return escapeHtml(text);
+  const escapedKeyword = escapeHtml(keyword);
+  const escapedText = escapeHtml(text);
+  const regex = new RegExp(`(${escapedKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  return escapedText.replace(regex, '<span class="faq-highlight">$1</span>');
+}
+
+function renderFAQItem(item, keyword = '') {
+  const highlightedQuestion = highlightKeyword(item.question, keyword);
+  const highlightedAnswer = item.answer.map(a => highlightKeyword(a, keyword)).join('</p><p>');
+  
+  return `
+    <div class="faq-item" data-question-id="${item.id}">
+      <div class="faq-item-header">
+        <div class="faq-item-question">${highlightedQuestion}</div>
+        <span class="faq-item-icon">▼</span>
+      </div>
+      <div class="faq-item-answer">
+        <div class="faq-item-answer-content">
+          <p>${highlightedAnswer}</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFAQCategory(category, keyword = '') {
+  const matchedQuestions = keyword
+    ? category.questions.filter(q => 
+        q.question.toLowerCase().includes(keyword.toLowerCase()) ||
+        q.answer.some(a => a.toLowerCase().includes(keyword.toLowerCase()))
+      )
+    : category.questions;
+  
+  if (keyword && matchedQuestions.length === 0) {
+    return '';
+  }
+  
+  const shouldExpand = keyword && matchedQuestions.length > 0;
+  
+  return `
+    <div class="faq-category ${shouldExpand ? 'expanded' : ''}" data-category-id="${category.id}">
+      <div class="faq-category-header">
+        <div class="faq-category-icon">${category.icon}</div>
+        <div class="faq-category-info">
+          <div class="faq-category-title">${category.title}</div>
+          <div class="faq-category-count">${matchedQuestions.length} 个问题</div>
+        </div>
+        <span class="faq-category-expand">▼</span>
+      </div>
+      <div class="faq-items-container">
+        <div class="faq-items">
+          ${matchedQuestions.map(q => renderFAQItem(q, keyword)).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFAQ(keyword = '') {
+  const container = document.getElementById('faqContainer');
+  const emptyResult = document.getElementById('helpEmptyResult');
+  if (!container) return;
+  
+  const html = FAQ_DATA.map(cat => renderFAQCategory(cat, keyword)).filter(h => h !== '').join('');
+  
+  if (!html) {
+    container.innerHTML = '';
+    emptyResult.style.display = 'block';
+  } else {
+    emptyResult.style.display = 'none';
+    container.innerHTML = html;
+    
+    const categories = container.querySelectorAll('.faq-category');
+    categories.forEach(cat => {
+      const header = cat.querySelector('.faq-category-header');
+      header.addEventListener('click', () => {
+        cat.classList.toggle('expanded');
+      });
+    });
+    
+    const items = container.querySelectorAll('.faq-item');
+    items.forEach(item => {
+      const header = item.querySelector('.faq-item-header');
+      header.addEventListener('click', (e) => {
+        e.stopPropagation();
+        item.classList.toggle('expanded');
+      });
+    });
+  }
+}
+
+function initHelpCenter() {
+  const searchInput = document.getElementById('helpSearchInput');
+  const clearBtn = document.getElementById('helpSearchClear');
+  
+  if (!searchInput) return;
+  
+  renderFAQ();
+  
+  searchInput.addEventListener('input', (e) => {
+    currentSearchKeyword = e.target.value.trim();
+    clearBtn.style.display = currentSearchKeyword ? 'flex' : 'none';
+    renderFAQ(currentSearchKeyword);
+  });
+  
+  clearBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    currentSearchKeyword = '';
+    clearBtn.style.display = 'none';
+    renderFAQ();
+    searchInput.focus();
+  });
+}
+
+function scrollToHelp() {
+  const helpBtn = document.querySelector('.nav-btn[data-view="help"]');
+  if (helpBtn) {
+    helpBtn.click();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 }
