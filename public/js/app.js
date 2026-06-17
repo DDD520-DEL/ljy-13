@@ -186,6 +186,9 @@ function initNavigation() {
       if (view === 'self-test') {
         initSelfTest();
       }
+      if (view === 'quick-match') {
+        initQuickMatch();
+      }
     });
   });
 }
@@ -221,7 +224,7 @@ function goBackFromVenue() {
 }
 
 function getActiveView() {
-  const views = ['calendar', 'map', 'partners', 'encyclopedia', 'self-test', 'messages', 'publish', 'profile', 'venue', 'help'];
+  const views = ['calendar', 'map', 'partners', 'quick-match', 'encyclopedia', 'self-test', 'messages', 'publish', 'profile', 'venue', 'help'];
   for (const v of views) {
     const el = document.getElementById(`${v}-view`);
     if (el && el.classList.contains('active')) {
@@ -1728,6 +1731,9 @@ async function loadUsers() {
         if (document.getElementById('profile-view').classList.contains('active')) {
           loadUserProfile();
         }
+        if (document.getElementById('quick-match-view').classList.contains('active')) {
+          loadQuickMatchData();
+        }
       } else {
         currentUser = null;
         loadDances().then(() => {
@@ -1742,6 +1748,9 @@ async function loadUsers() {
         loadUnreadCount();
         if (document.getElementById('profile-view').classList.contains('active')) {
           loadUserProfile();
+        }
+        if (document.getElementById('quick-match-view').classList.contains('active')) {
+          showQuickMatchEmpty();
         }
       }
     });
@@ -5466,4 +5475,327 @@ function initFeedback() {
       }
     }
   });
+}
+
+/* ========== 快速匹配（卡片滑动）功能 ========== */
+
+let quickMatchQueue = [];
+let quickMatchCurrentIndex = 0;
+let quickMatchViewedCount = 0;
+let quickMatchInvitedCount = 0;
+let quickMatchInitialized = false;
+
+function initQuickMatch() {
+  if (quickMatchInitialized) {
+    renderQuickMatchCards();
+    return;
+  }
+
+  const skipBtn = document.getElementById('quickMatchSkipBtn');
+  const likeBtn = document.getElementById('quickMatchLikeBtn');
+  const reloadBtn = document.getElementById('reloadQuickMatchBtn');
+
+  if (skipBtn) {
+    skipBtn.addEventListener('click', () => {
+      swipeQuickMatchCard('left');
+    });
+  }
+
+  if (likeBtn) {
+    likeBtn.addEventListener('click', () => {
+      swipeQuickMatchCard('right');
+    });
+  }
+
+  if (reloadBtn) {
+    reloadBtn.addEventListener('click', () => {
+      loadQuickMatchData();
+    });
+  }
+
+  quickMatchInitialized = true;
+  loadQuickMatchData();
+}
+
+async function loadQuickMatchData() {
+  if (!currentUser) {
+    showQuickMatchEmpty();
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/users/match/${currentUser.id}`);
+    const data = await res.json();
+
+    quickMatchQueue = data.matches.map(u => ({
+      ...u,
+      styles: normalizeStylesFrontend(u.styles)
+    }));
+
+    quickMatchCurrentIndex = 0;
+    quickMatchViewedCount = 0;
+    quickMatchInvitedCount = 0;
+
+    updateQuickMatchStats();
+    renderQuickMatchCards();
+  } catch (e) {
+    console.error('加载快速匹配数据失败:', e);
+    showToast('加载失败，请稍后重试', 'error');
+  }
+}
+
+function showQuickMatchEmpty() {
+  const emptyEl = document.getElementById('quickMatchEmpty');
+  const cardStack = document.getElementById('quickMatchCardStack');
+
+  document.querySelectorAll('.quick-match-card').forEach(card => card.remove());
+
+  if (emptyEl) {
+    emptyEl.style.display = 'block';
+  }
+}
+
+function updateQuickMatchStats() {
+  const viewedEl = document.getElementById('quickMatchViewedCount');
+  const invitedEl = document.getElementById('quickMatchInvitedCount');
+
+  if (viewedEl) viewedEl.textContent = quickMatchViewedCount;
+  if (invitedEl) invitedEl.textContent = quickMatchInvitedCount;
+}
+
+function renderQuickMatchCards() {
+  const cardStack = document.getElementById('quickMatchCardStack');
+  const emptyEl = document.getElementById('quickMatchEmpty');
+
+  if (!cardStack) return;
+
+  document.querySelectorAll('.quick-match-card').forEach(card => card.remove());
+
+  if (quickMatchCurrentIndex >= quickMatchQueue.length) {
+    if (emptyEl) emptyEl.style.display = 'block';
+    return;
+  }
+
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  for (let i = Math.min(1, quickMatchQueue.length - quickMatchCurrentIndex - 1); i >= 0; i--) {
+    const userIndex = quickMatchCurrentIndex + i;
+    if (userIndex >= quickMatchQueue.length) continue;
+
+    const user = quickMatchQueue[userIndex];
+    const card = createQuickMatchCard(user, i === 0);
+    cardStack.appendChild(card);
+  }
+
+  const frontCard = cardStack.querySelector('.quick-match-card-front');
+  if (frontCard) {
+    setupCardDrag(frontCard);
+  }
+}
+
+function createQuickMatchCard(user, isFront) {
+  const card = document.createElement('div');
+  card.className = `quick-match-card ${isFront ? 'quick-match-card-front' : 'quick-match-card-behind'}`;
+  card.dataset.userId = user.id;
+
+  const roleText = { leader: '引带', follower: '跟随', both: '双修' }[user.role] || user.role;
+  const levelText = { beginner: '入门', intermediate: '中级', advanced: '高级' }[user.level] || user.level;
+
+  const styleTags = user.styles.map(s =>
+    `<span class="quick-match-style-tag">${s.name}</span>`
+  ).join('');
+
+  card.innerHTML = `
+    <div class="quick-match-nope-label">跳过</div>
+    <div class="quick-match-like-label">邀约</div>
+    <div class="quick-match-card-header">
+      ${user.matchScore !== undefined ? `<div class="quick-match-card-match-badge">匹配度 ${user.matchScore}%</div>` : ''}
+      <img src="${user.avatar}" alt="${user.name}" class="quick-match-card-avatar">
+    </div>
+    <div class="quick-match-card-body">
+      <div class="quick-match-card-name-row">
+        <span class="quick-match-card-name">${user.name}</span>
+        <span class="quick-match-card-years">${user.danceYears}年舞龄</span>
+      </div>
+      <div class="quick-match-card-info">
+        <span class="quick-match-info-tag">${roleText}</span>
+        <span class="quick-match-info-tag">${levelText}</span>
+        <span class="quick-match-info-tag">📍 ${user.city}</span>
+      </div>
+      <p class="quick-match-card-bio">${user.bio || ''}</p>
+      <div class="quick-match-card-styles">
+        ${styleTags}
+      </div>
+    </div>
+  `;
+
+  return card;
+}
+
+function setupCardDrag(card) {
+  let startX = 0;
+  let startY = 0;
+  let currentX = 0;
+  let currentY = 0;
+  let isDragging = false;
+
+  const likeLabel = card.querySelector('.quick-match-like-label');
+  const nopeLabel = card.querySelector('.quick-match-nope-label');
+
+  function onDragStart(e) {
+    isDragging = true;
+    card.classList.add('swiping');
+
+    const point = e.touches ? e.touches[0] : e;
+    startX = point.clientX;
+    startY = point.clientY;
+
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup', onDragEnd);
+    document.addEventListener('touchmove', onDragMove, { passive: false });
+    document.addEventListener('touchend', onDragEnd);
+  }
+
+  function onDragMove(e) {
+    if (!isDragging) return;
+    if (e.preventDefault) e.preventDefault();
+
+    const point = e.touches ? e.touches[0] : e;
+    currentX = point.clientX - startX;
+    currentY = point.clientY - startY;
+
+    const rotation = currentX * 0.08;
+    card.style.transform = `translateX(${currentX}px) translateY(${currentY}px) rotate(${rotation}deg)`;
+
+    const opacity = Math.min(Math.abs(currentX) / 100, 1);
+    if (currentX > 0) {
+      if (likeLabel) likeLabel.style.opacity = opacity;
+      if (nopeLabel) nopeLabel.style.opacity = 0;
+    } else {
+      if (nopeLabel) nopeLabel.style.opacity = opacity;
+      if (likeLabel) likeLabel.style.opacity = 0;
+    }
+  }
+
+  function onDragEnd() {
+    if (!isDragging) return;
+    isDragging = false;
+    card.classList.remove('swiping');
+
+    document.removeEventListener('mousemove', onDragMove);
+    document.removeEventListener('mouseup', onDragEnd);
+    document.removeEventListener('touchmove', onDragMove);
+    document.removeEventListener('touchend', onDragEnd);
+
+    const threshold = 120;
+
+    if (currentX > threshold) {
+      swipeQuickMatchCard('right');
+    } else if (currentX < -threshold) {
+      swipeQuickMatchCard('left');
+    } else {
+      card.style.transform = '';
+      if (likeLabel) likeLabel.style.opacity = 0;
+      if (nopeLabel) nopeLabel.style.opacity = 0;
+    }
+
+    currentX = 0;
+    currentY = 0;
+  }
+
+  card.addEventListener('mousedown', onDragStart);
+  card.addEventListener('touchstart', onDragStart, { passive: true });
+}
+
+function swipeQuickMatchCard(direction) {
+  const cardStack = document.getElementById('quickMatchCardStack');
+  if (!cardStack) return;
+
+  const frontCard = cardStack.querySelector('.quick-match-card-front');
+  if (!frontCard) return;
+
+  const userId = parseInt(frontCard.dataset.userId);
+
+  if (direction === 'right') {
+    frontCard.classList.add('swipe-right');
+    quickMatchInvitedCount++;
+    handleQuickMatchLike(userId);
+  } else {
+    frontCard.classList.add('swipe-left');
+  }
+
+  quickMatchViewedCount++;
+  updateQuickMatchStats();
+
+  setTimeout(() => {
+    frontCard.remove();
+    quickMatchCurrentIndex++;
+
+    const behindCard = cardStack.querySelector('.quick-match-card-behind');
+    if (behindCard) {
+      behindCard.classList.remove('quick-match-card-behind');
+      behindCard.classList.add('quick-match-card-front');
+      setupCardDrag(behindCard);
+    }
+
+    if (quickMatchCurrentIndex < quickMatchQueue.length) {
+      const nextIndex = quickMatchCurrentIndex + 1;
+      if (nextIndex < quickMatchQueue.length) {
+        const nextUser = quickMatchQueue[nextIndex];
+        const nextCard = createQuickMatchCard(nextUser, false);
+        cardStack.insertBefore(nextCard, cardStack.firstChild);
+      }
+    }
+
+    if (quickMatchCurrentIndex >= quickMatchQueue.length) {
+      const emptyEl = document.getElementById('quickMatchEmpty');
+      if (emptyEl) emptyEl.style.display = 'block';
+    }
+  }, 300);
+}
+
+async function handleQuickMatchLike(userId) {
+  if (!currentUser) return;
+
+  const user = quickMatchQueue.find(u => u.id === userId);
+  if (!user) return;
+
+  try {
+    const upcomingDances = allDances.filter(d => new Date(d.date) >= new Date());
+    let danceId = null;
+
+    if (upcomingDances.length > 0) {
+      const cityDances = upcomingDances.filter(d => d.city === currentUser.city);
+      const targetDance = cityDances.length > 0 ? cityDances[0] : upcomingDances[0];
+      danceId = targetDance.id;
+    }
+
+    if (!danceId) {
+      showToast('暂无可用的舞会', 'error');
+      return;
+    }
+
+    const invitationData = {
+      danceId,
+      fromUserId: currentUser.id,
+      toUserId: userId,
+      message: '在"寻找舞伴"中看到了你，想邀请你一起跳舞！'
+    };
+
+    const res = await fetch(`${API_BASE}/invitations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(invitationData)
+    });
+
+    if (res.ok) {
+      showToast(`已向 ${user.name} 发起邀约！`, 'success');
+    } else {
+      const data = await res.json();
+      showToast(data.error || '邀约发送失败', 'error');
+    }
+  } catch (e) {
+    console.error('发送邀约失败:', e);
+    showToast('邀约发送失败', 'error');
+  }
 }

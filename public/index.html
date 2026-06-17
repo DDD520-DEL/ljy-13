@@ -22,6 +22,7 @@
         <button class="nav-btn active" data-view="calendar">舞会日历</button>
         <button class="nav-btn" data-view="map">附近地图</button>
         <button class="nav-btn" data-view="partners">舞伴匹配</button>
+        <button class="nav-btn" data-view="quick-match">🎯 寻找舞伴</button>
         <button class="nav-btn" data-view="encyclopedia">舞种百科</button>
         <button class="nav-btn" data-view="self-test">🎯 水平自测</button>
         <button class="nav-btn" data-view="messages">
@@ -170,6 +171,43 @@
           <div class="partners-list">
             <h3>推荐舞伴</h3>
             <div id="partnersList" class="partner-cards"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="quick-match-view" class="view">
+        <div class="view-header">
+          <h2>🎯 寻找舞伴</h2>
+          <p class="quick-match-subtitle">滑动卡片，快速找到你的心仪舞伴</p>
+        </div>
+
+        <div class="quick-match-container">
+          <div class="quick-match-card-stack" id="quickMatchCardStack">
+            <div class="quick-match-empty" id="quickMatchEmpty" style="display:none;">
+              <div class="empty-icon">💃</div>
+              <h3>暂无更多推荐</h3>
+              <p>请先选择身份，或稍后再来看看</p>
+              <button class="btn btn-primary" id="reloadQuickMatchBtn">重新加载</button>
+            </div>
+          </div>
+
+          <div class="quick-match-actions">
+            <button class="quick-match-btn skip-btn" id="quickMatchSkipBtn">
+              <span class="btn-icon">✕</span>
+              <span class="btn-text">跳过</span>
+            </button>
+            <button class="quick-match-btn super-like-btn" id="quickMatchSuperLikeBtn" style="display:none;">
+              <span class="btn-icon">⭐</span>
+            </button>
+            <button class="quick-match-btn like-btn" id="quickMatchLikeBtn">
+              <span class="btn-icon">♥</span>
+              <span class="btn-text">感兴趣</span>
+            </button>
+          </div>
+
+          <div class="quick-match-stats">
+            <span>已浏览: <strong id="quickMatchViewedCount">0</strong></span>
+            <span>已邀约: <strong id="quickMatchInvitedCount">0</strong></span>
           </div>
         </div>
       </section>
