@@ -5690,10 +5690,26 @@ function setupCardDrag(card) {
     const threshold = 120;
 
     if (currentX > threshold) {
-      swipeQuickMatchCard('right');
+      card.style.transition = 'transform 0.2s ease';
+      card.style.transform = 'translateX(30px) rotate(3deg)';
+      if (likeLabel) likeLabel.style.opacity = 1;
+      if (nopeLabel) nopeLabel.style.opacity = 0;
+
+      const userId = parseInt(card.dataset.userId);
+      handleQuickMatchLike(userId).then(success => {
+        if (success) {
+          quickMatchInvitedCount++;
+          completeSwipe(card, 'right');
+        } else {
+          card.style.transition = 'transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+          card.style.transform = '';
+          if (likeLabel) likeLabel.style.opacity = 0;
+        }
+      });
     } else if (currentX < -threshold) {
       swipeQuickMatchCard('left');
     } else {
+      card.style.transition = 'transform 0.3s ease';
       card.style.transform = '';
       if (likeLabel) likeLabel.style.opacity = 0;
       if (nopeLabel) nopeLabel.style.opacity = 0;
@@ -5717,12 +5733,39 @@ function swipeQuickMatchCard(direction) {
   const userId = parseInt(frontCard.dataset.userId);
 
   if (direction === 'right') {
-    frontCard.classList.add('swipe-right');
-    quickMatchInvitedCount++;
-    handleQuickMatchLike(userId);
-  } else {
-    frontCard.classList.add('swipe-left');
+    frontCard.classList.add('swiping');
+    frontCard.style.transform = 'translateX(30px) rotate(3deg)';
+    frontCard.style.transition = 'transform 0.15s ease';
+
+    handleQuickMatchLike(userId).then(success => {
+      if (success) {
+        quickMatchInvitedCount++;
+        completeSwipe(frontCard, 'right');
+      } else {
+        frontCard.style.transition = 'transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        frontCard.style.transform = '';
+        frontCard.classList.remove('swiping');
+        const likeLabel = frontCard.querySelector('.quick-match-like-label');
+        if (likeLabel) likeLabel.style.opacity = 0;
+      }
+    });
+    return;
   }
+
+  frontCard.classList.add('swipe-left');
+  quickMatchViewedCount++;
+  updateQuickMatchStats();
+
+  setTimeout(() => {
+    frontCard.remove();
+    quickMatchCurrentIndex++;
+    promoteBehindCard(cardStack);
+  }, 300);
+}
+
+function completeSwipe(frontCard, direction) {
+  frontCard.classList.remove('swiping');
+  frontCard.classList.add('swipe-right');
 
   quickMatchViewedCount++;
   updateQuickMatchStats();
@@ -5731,34 +5774,41 @@ function swipeQuickMatchCard(direction) {
     frontCard.remove();
     quickMatchCurrentIndex++;
 
-    const behindCard = cardStack.querySelector('.quick-match-card-behind');
-    if (behindCard) {
-      behindCard.classList.remove('quick-match-card-behind');
-      behindCard.classList.add('quick-match-card-front');
-      setupCardDrag(behindCard);
-    }
-
-    if (quickMatchCurrentIndex < quickMatchQueue.length) {
-      const nextIndex = quickMatchCurrentIndex + 1;
-      if (nextIndex < quickMatchQueue.length) {
-        const nextUser = quickMatchQueue[nextIndex];
-        const nextCard = createQuickMatchCard(nextUser, false);
-        cardStack.insertBefore(nextCard, cardStack.firstChild);
-      }
-    }
-
-    if (quickMatchCurrentIndex >= quickMatchQueue.length) {
-      const emptyEl = document.getElementById('quickMatchEmpty');
-      if (emptyEl) emptyEl.style.display = 'block';
-    }
+    const cardStack = document.getElementById('quickMatchCardStack');
+    promoteBehindCard(cardStack);
   }, 300);
 }
 
+function promoteBehindCard(cardStack) {
+  if (!cardStack) return;
+
+  const behindCard = cardStack.querySelector('.quick-match-card-behind');
+  if (behindCard) {
+    behindCard.classList.remove('quick-match-card-behind');
+    behindCard.classList.add('quick-match-card-front');
+    setupCardDrag(behindCard);
+  }
+
+  if (quickMatchCurrentIndex < quickMatchQueue.length) {
+    const nextIndex = quickMatchCurrentIndex + 1;
+    if (nextIndex < quickMatchQueue.length) {
+      const nextUser = quickMatchQueue[nextIndex];
+      const nextCard = createQuickMatchCard(nextUser, false);
+      cardStack.insertBefore(nextCard, cardStack.firstChild);
+    }
+  }
+
+  if (quickMatchCurrentIndex >= quickMatchQueue.length) {
+    const emptyEl = document.getElementById('quickMatchEmpty');
+    if (emptyEl) emptyEl.style.display = 'block';
+  }
+}
+
 async function handleQuickMatchLike(userId) {
-  if (!currentUser) return;
+  if (!currentUser) return false;
 
   const user = quickMatchQueue.find(u => u.id === userId);
-  if (!user) return;
+  if (!user) return false;
 
   try {
     const upcomingDances = allDances.filter(d => new Date(d.date) >= new Date());
@@ -5771,8 +5821,8 @@ async function handleQuickMatchLike(userId) {
     }
 
     if (!danceId) {
-      showToast('暂无可用的舞会', 'error');
-      return;
+      showToast('邀约失败：暂无可用的舞会', 'error');
+      return false;
     }
 
     const invitationData = {
@@ -5790,12 +5840,21 @@ async function handleQuickMatchLike(userId) {
 
     if (res.ok) {
       showToast(`已向 ${user.name} 发起邀约！`, 'success');
-    } else {
-      const data = await res.json();
-      showToast(data.error || '邀约发送失败', 'error');
+      return true;
     }
+
+    const data = await res.json();
+    const errorMsg = data.error || '邀约发送失败';
+
+    if (res.status === 400 && errorMsg.includes('待处理')) {
+      showToast(`邀约失败：已向 ${user.name} 发送过待处理的邀约`, 'error');
+    } else {
+      showToast(`邀约失败：${errorMsg}`, 'error');
+    }
+    return false;
   } catch (e) {
     console.error('发送邀约失败:', e);
-    showToast('邀约发送失败', 'error');
+    showToast('邀约发送失败，请检查网络后重试', 'error');
+    return false;
   }
 }
